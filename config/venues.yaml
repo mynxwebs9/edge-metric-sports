@@ -1,0 +1,39 @@
+# NFL stadium coordinates and roof type - Phase 8A Step 12 (nfl_predict.live.weather_provider).
+# Public, static reference data (stadium locations), not a prediction of any kind.
+# Coordinates are approximate (stadium-centroid precision, sufficient for an Open-Meteo
+# forecast query) - not surveyed to the meter. roof: outdoors | dome | retractable.
+# Keyed by this project's team_id (verified against the `teams` table, not guessed).
+
+venues:
+  "3800": {team_abbr: ARI, stadium: "State Farm Stadium", lat: 33.5276, lon: -112.2626, roof: retractable}
+  "0200": {team_abbr: ATL, stadium: "Mercedes-Benz Stadium", lat: 33.7554, lon: -84.4009, roof: retractable}
+  "0325": {team_abbr: BAL, stadium: "M&T Bank Stadium", lat: 39.2780, lon: -76.6227, roof: outdoors}
+  "0610": {team_abbr: BUF, stadium: "Highmark Stadium", lat: 42.7738, lon: -78.7870, roof: outdoors}
+  "0750": {team_abbr: CAR, stadium: "Bank of America Stadium", lat: 35.2258, lon: -80.8528, roof: outdoors}
+  "0810": {team_abbr: CHI, stadium: "Soldier Field", lat: 41.8623, lon: -87.6167, roof: outdoors}
+  "0920": {team_abbr: CIN, stadium: "Paycor Stadium", lat: 39.0954, lon: -84.5160, roof: outdoors}
+  "1050": {team_abbr: CLE, stadium: "Huntington Bank Field", lat: 41.5061, lon: -81.6995, roof: outdoors}
+  "1200": {team_abbr: DAL, stadium: "AT&T Stadium", lat: 32.7473, lon: -97.0945, roof: retractable}
+  "1400": {team_abbr: DEN, stadium: "Empower Field at Mile High", lat: 39.7439, lon: -105.0201, roof: outdoors}
+  "1540": {team_abbr: DET, stadium: "Ford Field", lat: 42.3400, lon: -83.0456, roof: dome}
+  "1800": {team_abbr: GB, stadium: "Lambeau Field", lat: 44.5013, lon: -88.0622, roof: outdoors}
+  "2120": {team_abbr: HOU, stadium: "NRG Stadium", lat: 29.6847, lon: -95.4107, roof: retractable}
+  "2200": {team_abbr: IND, stadium: "Lucas Oil Stadium", lat: 39.7601, lon: -86.1639, roof: retractable}
+  "2250": {team_abbr: JAX, stadium: "EverBank Stadium", lat: 30.3239, lon: -81.6373, roof: outdoors}
+  "2310": {team_abbr: KC, stadium: "GEHA Field at Arrowhead Stadium", lat: 39.0489, lon: -94.4839, roof: outdoors}
+  "2510": {team_abbr: LA, stadium: "SoFi Stadium", lat: 33.9535, lon: -118.3392, roof: dome}
+  "4400": {team_abbr: LAC, stadium: "SoFi Stadium", lat: 33.9535, lon: -118.3392, roof: dome}
+  "2520": {team_abbr: LV, stadium: "Allegiant Stadium", lat: 36.0909, lon: -115.1833, roof: dome}
+  "2700": {team_abbr: MIA, stadium: "Hard Rock Stadium", lat: 25.9580, lon: -80.2389, roof: outdoors}
+  "3000": {team_abbr: MIN, stadium: "U.S. Bank Stadium", lat: 44.9737, lon: -93.2581, roof: dome}
+  "3200": {team_abbr: NE, stadium: "Gillette Stadium", lat: 42.0909, lon: -71.2643, roof: outdoors}
+  "3300": {team_abbr: NO, stadium: "Caesars Superdome", lat: 29.9511, lon: -90.0812, roof: dome}
+  "3410": {team_abbr: NYG, stadium: "MetLife Stadium", lat: 40.8135, lon: -74.0745, roof: outdoors}
+  "3430": {team_abbr: NYJ, stadium: "MetLife Stadium", lat: 40.8135, lon: -74.0745, roof: outdoors}
+  "3700": {team_abbr: PHI, stadium: "Lincoln Financial Field", lat: 39.9008, lon: -75.1675, roof: outdoors}
+  "3900": {team_abbr: PIT, stadium: "Acrisure Stadium", lat: 40.4468, lon: -80.0158, roof: outdoors}
+  "4600": {team_abbr: SEA, stadium: "Lumen Field", lat: 47.5952, lon: -122.3316, roof: outdoors}
+  "4500": {team_abbr: SF, stadium: "Levi's Stadium", lat: 37.4033, lon: -121.9694, roof: outdoors}
+  "4900": {team_abbr: TB, stadium: "Raymond James Stadium", lat: 27.9759, lon: -82.5033, roof: outdoors}
+  "2100": {team_abbr: TEN, stadium: "Nissan Stadium", lat: 36.1665, lon: -86.7713, roof: outdoors}
+  "5110": {team_abbr: WAS, stadium: "Commanders Field", lat: 38.9077, lon: -76.8645, roof: outdoors}

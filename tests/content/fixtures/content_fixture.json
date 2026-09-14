@@ -1,0 +1,9 @@
+{
+  "default": {
+    "text": "Denver Broncos at Kansas City Chiefs: Elo projects DEN by 3.2, with Ridge close behind at DEN by 3.4, while LightGBM sees a much tighter game at DEN by 0.9. The market disagrees with the stronger model readings, pricing KC as a 2.5-point favorite. That gap - about 5.7 points - is real, but the system's spread and moneyline calls are both no bet right now, pending complete market and research data. Research flagged a significant, unresolved risk: Kansas City's starting quarterback is working back from a major injury with no live game reps this preseason, which is exactly the kind of uncertainty a frozen statistical model can't see on its own.",
+    "model_name": "claude-sonnet-5",
+    "input_tokens": 480,
+    "output_tokens": 165,
+    "estimated_cost_usd": 0.0026
+  }
+}

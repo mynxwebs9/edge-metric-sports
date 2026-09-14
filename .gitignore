@@ -1,0 +1,40 @@
+# Secrets / environment
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Data (regenerable, not source; see docs/ARCHITECTURE.md#storage)
+/data/
+*.sqlite
+*.sqlite3
+*.parquet
+*.db
+
+# Model artifacts
+/models/artifacts/
+
+# Node / Next.js (added once Phase 8 creates the website/ directory)
+node_modules/
+.next/
+out/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code session-local runtime state (not project source)
+.claude/*.lock

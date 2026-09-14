@@ -1,0 +1,171 @@
+# Phase 7 decision-engine rules — consumed by src/nfl_predict/decision/rules_config.py.
+# Documented in docs/DECISION_ENGINE.md and docs/PHASE7_DECISION_ENGINE_REPORT.md.
+#
+# IMPORTANT — read before changing anything here:
+#   Phase 5 found NO demonstrated stable betting edge. These thresholds are CONSERVATIVE,
+#   TRANSPARENT, PROSPECTIVE HYPOTHESES — never derived by looking at which Phase 5
+#   disagreement bucket or Phase 6 pilot game happened to look best and reverse-engineering
+#   a threshold to match. Every rule's `rationale` says what it's actually based on
+#   (Phase 5's own PRE-DECLARED bucket boundaries, general statistical reasoning, or
+#   Phase 3/4's frozen uncertainty estimate) — never a fitted/tuned number.
+#
+#   Changing a threshold or a rule's logic REQUIRES bumping that rule's `version` and
+#   recording a new rule_id row here — never edit a rule's threshold in place while
+#   keeping the same version. Historical decisions reference the rule_set_version they were
+#   made under (`DecisionRecord.decision_rule_version`) and are never retroactively
+#   reinterpreted under a newer rule set.
+#
+# Status values: EXPERIMENTAL | PROSPECTIVE_VALIDATION | ACTIVE | RETIRED.
+# No rule in this file may be ACTIVE until it has been prospectively validated on data that
+# did NOT already inform its threshold — see docs/PHASE7_DECISION_ENGINE_REPORT.md's
+# "Do not derive thresholds from 2024-2025" section.
+
+rule_set_version: "v1"
+rule_set_status: PROSPECTIVE_VALIDATION
+
+rules:
+  - rule_id: min_spread_disagreement_points
+    version: 1
+    description: >
+      A spread-market QUALIFIED_BET requires the model's fair line to disagree with the
+      market's implied line by at least this many points.
+    required_inputs: [model_market_disagreement_points]
+    threshold: 3.0
+    rationale: >
+      Reuses Phase 5's own PRE-DECLARED disagreement-bucket boundaries
+      (0.00-0.99/1.00-1.99/2.00-2.99/3.00-3.99/4.00+ points, fixed before Phase 5 saw any
+      betting result) as the starting point for "meaningfully large," landing on the
+      3-point boundary because Phase 5's bootstrap confidence intervals on model-vs-market
+      MAE differences never excluded zero at smaller magnitudes. This is NOT the
+      best-performing Phase 5 bucket (no bucket showed a stable edge) - it is a size-of-
+      effect threshold, chosen without looking at any bucket's win rate or ROI.
+    provenance: "Phase 7 initial rule set - see docs/PHASE7_DECISION_ENGINE_REPORT.md"
+    status: PROSPECTIVE_VALIDATION
+
+  - rule_id: min_moneyline_disagreement_probability
+    version: 1
+    description: >
+      A moneyline-market QUALIFIED_BET requires the model's win probability to disagree
+      with the market's no-vig probability by at least this fraction.
+    required_inputs: [model_market_disagreement_probability]
+    threshold: 0.03
+    rationale: >
+      Reuses Phase 5's own PRE-DECLARED moneyline probability-edge buckets
+      (<1%/1-2%/2-3%/3-5%/5%+, fixed before results were seen), landing on the 3% boundary
+      for the same size-of-effect reasoning as the spread rule above - not derived from
+      which bucket's win rate looked best (none demonstrated a stable edge in Phase 5).
+    provenance: "Phase 7 initial rule set - see docs/PHASE7_DECISION_ENGINE_REPORT.md"
+    status: PROSPECTIVE_VALIDATION
+
+  - rule_id: require_full_model_coverage_for_qualified_bet
+    version: 1
+    description: >
+      QUALIFIED_BET requires Elo, Ridge, and LightGBM to all be live-available AND agree on
+      win direction. A missing model is never treated as agreeing (Step 21).
+    required_inputs: [model_agreement.n_models_available, model_agreement.all_agree_on_direction]
+    threshold: "n_models_available == 3 and all_agree_on_direction is True"
+    rationale: >
+      As of Phase 6, Ridge/LightGBM have no live feature-engineering pipeline and are never
+      actually available for a genuinely upcoming game - this rule is a conservative
+      completeness bar chosen on general principle (a decision made on 1 of 3 models is
+      less complete than one made on 3 of 3), not tuned to any observed outcome. Its
+      practical effect today is that QUALIFIED_BET is not reachable until that live
+      pipeline exists - an intentional, honest consequence, not a bug to route around.
+    provenance: "Phase 7 initial rule set - see docs/PHASE7_DECISION_ENGINE_REPORT.md"
+    status: PROSPECTIVE_VALIDATION
+
+  - rule_id: max_model_margin_dispersion_points
+    version: 1
+    description: >
+      Among AVAILABLE models, if the spread between the largest and smallest predicted
+      margin exceeds this many points, qualification is capped below QUALIFIED_BET
+      (MODEL_DISAGREEMENT_HIGH), regardless of model-vs-market disagreement.
+    required_inputs: [model_agreement.margin_dispersion]
+    threshold: 3.0
+    rationale: >
+      If the independent models do not agree with EACH OTHER by more than a field goal,
+      treating their combination as a confident directional signal is not justified -
+      general statistical reasoning, not an outcome-fitted number.
+    provenance: "Phase 7 initial rule set - see docs/PHASE7_DECISION_ENGINE_REPORT.md"
+    status: PROSPECTIVE_VALIDATION
+
+  - rule_id: max_market_snapshot_age_hours
+    version: 1
+    description: >
+      A market snapshot older than this many hours is STALE_MARKET - caps qualification at
+      WATCH regardless of other factors.
+    required_inputs: [system_health.market_age_seconds]
+    threshold: 24
+    rationale: >
+      A spread/price captured more than a day before kickoff may no longer reflect real
+      current market information (injury news, line movement) - a conservative operational
+      freshness bar, not fit to any backtest result.
+    provenance: "Phase 7 initial rule set - see docs/PHASE7_DECISION_ENGINE_REPORT.md"
+    status: PROSPECTIVE_VALIDATION
+
+  - rule_id: max_research_age_hours
+    version: 1
+    description: >
+      Research older than this many hours relative to the decision timestamp is
+      STALE_RESEARCH - caps qualification at WATCH regardless of other factors.
+    required_inputs: [system_health.research_age_seconds]
+    threshold: 72
+    rationale: >
+      Research from early in game week (e.g. Thursday) can be meaningfully outdated by
+      Sunday if injury status changes - 72 hours is roughly "through the week," a round,
+      conservative operational choice, not fit to any outcome.
+    provenance: "Phase 7 initial rule set - see docs/PHASE7_DECISION_ENGINE_REPORT.md"
+    status: PROSPECTIVE_VALIDATION
+
+  - rule_id: veto_consideration_blocks_qualified_bet
+    version: 1
+    description: >
+      A research classification of VETO_CONSIDERATION forces the decision to VETO,
+      unconditionally, regardless of model-market disagreement or model agreement.
+    required_inputs: [research.classification]
+    threshold: "classification == VETO_CONSIDERATION"
+    rationale: >
+      Per the Phase 6/7 briefs, VETO_CONSIDERATION exists specifically to flag unresolved
+      material risk (e.g. genuine starting-QB uncertainty) - publishing a bet through it
+      would defeat the purpose of having the flag at all.
+    provenance: "Phase 7 initial rule set - see docs/PHASE7_DECISION_ENGINE_REPORT.md"
+    status: PROSPECTIVE_VALIDATION
+
+  - rule_id: high_uncertainty_caps_at_watch
+    version: 1
+    description: >
+      A research classification of HIGH_UNCERTAINTY caps the decision at WATCH - it cannot
+      reach LEAN or QUALIFIED_BET even if other criteria are met.
+    required_inputs: [research.classification]
+    threshold: "classification == HIGH_UNCERTAINTY"
+    rationale: "Explicit per Step 7 of the Phase 7 brief."
+    provenance: "Phase 7 initial rule set - see docs/PHASE7_DECISION_ENGINE_REPORT.md"
+    status: PROSPECTIVE_VALIDATION
+
+  - rule_id: research_supports_market_caps_at_lean
+    version: 1
+    description: >
+      A research classification of SUPPORTS_MARKET caps the decision at LEAN when the
+      engine's directional read otherwise agrees with the model over the market - the
+      research reduces willingness to publish a model-vs-market disagreement as an
+      official pick, without treating the disagreement as automatically wrong.
+    required_inputs: [research.classification]
+    threshold: "classification == SUPPORTS_MARKET"
+    rationale: "Explicit per Step 7 of the Phase 7 brief."
+    provenance: "Phase 7 initial rule set - see docs/PHASE7_DECISION_ENGINE_REPORT.md"
+    status: PROSPECTIVE_VALIDATION
+
+  - rule_id: missing_market_or_research_blocks_qualified_bet
+    version: 1
+    description: >
+      QUALIFIED_BET requires both a live market snapshot and a research record to be
+      available - either being unavailable caps the decision below QUALIFIED_BET
+      (MISSING_LIVE_DATA).
+    required_inputs: [market.available, research.available]
+    threshold: "market.available is True and research.available is True"
+    rationale: >
+      A published pick made without a real current market line or without any research
+      pass is not something this project is willing to stand behind as an official
+      selection, regardless of what the model alone says.
+    provenance: "Phase 7 initial rule set - see docs/PHASE7_DECISION_ENGINE_REPORT.md"
+    status: PROSPECTIVE_VALIDATION

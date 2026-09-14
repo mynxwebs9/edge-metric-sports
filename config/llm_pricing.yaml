@@ -1,0 +1,27 @@
+# Anthropic Claude API pricing, per model — Phase 8A correction (research cost controls).
+#
+# Source: https://platform.claude.com/docs/en/about-claude/pricing (fetched live 2026-09-12).
+# All prices in USD. This file exists so a dollar cost is computed from ONE configured
+# table, not hard-coded/scattered across Python - update THIS file (not code) whenever
+# Anthropic changes pricing, and re-verify against the pricing page above since prices do
+# change (Claude Sonnet 5's own listed price changed once already, per that page's own
+# note about its introductory-pricing period ending).
+#
+# base_input_per_mtok:      standard (uncached) input token price, per million tokens
+# cache_write_5m_per_mtok:  5-minute prompt-cache write price (the default TTL this
+#                           project uses - see AnthropicMessagesProvider)
+# cache_write_1h_per_mtok:  1-hour prompt-cache write price (not currently requested)
+# cache_read_per_mtok:      prompt-cache hit/read price
+# output_per_mtok:          output token price
+# web_search_per_call:      Anthropic's hosted web-search tool - a FLAT per-search fee,
+#                           not a token-based cost (search-result content is separately
+#                           billed as ordinary input tokens)
+
+models:
+  claude-sonnet-5:
+    base_input_per_mtok: 2.00
+    cache_write_5m_per_mtok: 2.50
+    cache_write_1h_per_mtok: 4.00
+    cache_read_per_mtok: 0.20
+    output_per_mtok: 10.00
+    web_search_per_call: 0.01

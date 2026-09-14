@@ -1,0 +1,17 @@
+{
+  "matchup_research_v1": {
+    "raw_output_text": "{\"material_facts\": [], \"uncertain_reports\": [], \"external_model_opinions\": [], \"analyst_opinions\": [], \"qb_status\": \"No change reported.\", \"ol_status\": \"No change reported.\", \"skill_position_status\": \"No change reported.\", \"defensive_personnel_status\": \"No change reported.\", \"weather_status\": \"Not checked.\", \"coaching_status\": \"No change reported.\", \"missing_information\": [], \"research_classification\": \"NO_MATERIAL_NEW_INFORMATION\"}",
+    "input_tokens": 1200,
+    "output_tokens": 150,
+    "estimated_cost_usd": 0.01
+  },
+  "matchup_research_v2": {
+    "raw_output_text": "{\"material_facts\": [], \"uncertain_reports\": [], \"external_model_opinions\": [], \"analyst_opinions\": [], \"qb_status\": \"No change reported.\", \"ol_status\": \"No change reported.\", \"skill_position_status\": \"No change reported.\", \"defensive_personnel_status\": \"No change reported.\", \"weather_status\": \"Not checked.\", \"coaching_status\": \"No change reported.\", \"missing_information\": [], \"research_classification\": \"NO_MATERIAL_NEW_INFORMATION\"}",
+    "input_tokens": 1200,
+    "output_tokens": 150,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "web_search_requests": 0,
+    "estimated_cost_usd": 0.01
+  }
+}

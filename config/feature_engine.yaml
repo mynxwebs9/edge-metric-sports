@@ -1,0 +1,56 @@
+# Engine-wide tunables for the Phase 2 pregame feature engine.
+#
+# These are NOT per-feature definitions (those live in config/features.yaml) - they're the
+# handful of thresholds/window choices the engine needs that must be explicit and
+# configurable rather than silently hardcoded, per the Phase 2 brief ("Document the
+# threshold and make it configurable"). Changing any of these changes feature VALUES for
+# every feature that depends on it, which requires a feature_version bump (see
+# docs/PHASE2_FEATURE_REPORT.md#feature-versioning) - this file's own content is part of
+# the feature registry config hash recorded in every feature-build manifest.
+
+# Bumped whenever a feature's definition (formula, threshold, window set) changes in a way
+# that would silently alter historical meaning. See docs/PHASE2_FEATURE_REPORT.md.
+feature_version: "v1"
+
+# Trailing game-count windows for "recent form" metrics (off_epa_3g, off_epa_5g, ...).
+# Game-count windows, not calendar-day windows, per the Phase 2 brief - a team's "last 5
+# games" is meaningful regardless of bye weeks or the off-season gap between seasons.
+rolling_windows_games: [3, 5, 8]
+
+# Explosive-play thresholds. Conventional values (documented, not silently chosen) since
+# nflverse provides no canonical "explosive" flag - see docs/PHASE2_FEATURE_REPORT.md's
+# "Explosive play definitions" section for the exact play-filter semantics.
+explosive_pass_yards_gained: 20
+explosive_rush_yards_gained: 10
+
+# Red zone = a play whose yardline_100 (distance to the opponent's goal line) is at or
+# inside this value.
+redzone_yardline_100_max: 20
+
+# Garbage-time / competitive-play filter, applied to PRE-PLAY win probability only (never
+# post-play). A play is "competitive" if home_wp (home team's win probability BEFORE the
+# play) is inside [garbage_time_wp_threshold, 1 - garbage_time_wp_threshold]. Symmetric by
+# construction, so it doesn't matter which team is favored. 0.05 means both teams still had
+# at least a 5% win probability - anything more one-sided than that is treated as garbage
+# time for the COMPETITIVE-PLAY feature variants only; ALL-PLAY variants ignore this
+# entirely. See docs/PHASE2_FEATURE_REPORT.md#garbage-time--game-state for the rationale
+# and for why qb_kneel/qb_spike plays are excluded from both variants regardless of win
+# probability (they are not representative offensive plays, not a leakage concern).
+garbage_time_wp_threshold: 0.05
+
+# Minimum number of trailing games (of the relevant window) required for a rolling metric
+# to be populated rather than null. Below this, the value is missing, not zero - see
+# docs/FEATURE_DICTIONARY.md's missing-value policy.
+min_observations_rolling: 1
+
+# Minimum number of prior-game snapshots required before a snap-continuity feature (which
+# needs at least two prior games to compare) is populated.
+min_observations_snap_continuity: 2
+
+# short_week: true if a team plays on <= this many days of rest.
+short_week_max_rest_days: 6
+# post_bye: true if a team plays on >= this many days of rest (a bye week is 13-14 days
+# depending on scheduling; 12 is a deliberately conservative floor to also catch some
+# non-bye long-rest situations like a Thursday-following-Sunday-to-next-Sunday gap after a
+# scheduled off week).
+post_bye_min_rest_days: 12

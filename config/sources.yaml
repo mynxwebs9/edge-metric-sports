@@ -1,0 +1,79 @@
+# Declarative data-source registry — machine-readable mirror of docs/DATA_SOURCES.md.
+#
+# Every source ingestion code depends on MUST have an entry here, matching
+# docs/DATA_SOURCES.md. Loaded by src/nfl_predict/config.py. Empty until Phase 1 actually
+# integrates a source — docs/DATA_SOURCES.md lists candidates under consideration, but
+# nothing is wired into the pipeline until it has both a doc entry and code.
+#
+# Schema for each entry (all fields required, no placeholders):
+#
+# - name: source_identifier
+#   description: "What it provides."
+#   access_method: "package/API/bulk-download, and where the fetch code lives."
+#   auth_required: true|false
+#   auth_env_var: "ENV_VAR_NAME"      # omit or null if auth_required is false
+#   update_frequency: "e.g. 'weekly in-season' or 'static historical dump'"
+#   historical_coverage: "e.g. 'play-by-play from 1999'"
+#   trust_level: "official | third_party_aggregated | scraped_unofficial"
+#   used_for: ["ingestion_table_or_feature_category", "..."]
+#   known_issues: "Anything that has bitten or could bite data quality."
+#   raw_storage_convention: "Where immutable raw snapshots land, e.g.
+#     'data/raw/<source_name>/<dataset_name>/<retrieved_at_utc>/'. Every file under that
+#     path carries a provenance manifest per docs/ARCHITECTURE.md#raw-data-provenance."
+
+sources:
+  - name: nflverse
+    description: >
+      Community-maintained, research-grade NFL data (nflverse-data project) — teams,
+      schedules/games, play-by-play, player statistics, rosters, weekly rosters, snap
+      counts, participation, depth charts, and Next Gen Stats. See
+      docs/DATA_SOURCES.md and docs/PHASE1_DATA_REPORT.md for the coverage actually
+      discovered by ingesting it.
+    access_method: >
+      Python package `nflreadpy` (>=0.1.5,<0.2.0; NOT `nfl_data_py`, which is
+      archived/deprecated), via src/nfl_predict/data/nflverse_loader.py. Returns Polars
+      DataFrames, served from https://github.com/nflverse/nflverse-data GitHub releases.
+    auth_required: false
+    auth_env_var: null
+    update_frequency: "Updated in-season, typically within a day or two of games; static for completed historical seasons."
+    historical_coverage: >
+      Verified by actually fetching each dataset (not assumed from documentation) for the
+      2010-2025 window; see docs/PHASE1_DATA_REPORT.md for the per-dataset, per-season
+      table. Summary: teams/schedules/pbp/player_stats/rosters cover the full 2010-2025
+      window; rosters_weekly and depth_charts cover it fully; snap_counts is documented as
+      "since 2012" but 2012 itself returns zero rows (effective coverage starts 2013);
+      participation and the three Next Gen Stats datasets (passing/receiving/rushing)
+      start in 2016.
+    # nflverse itself is a community-maintained aggregator, not an official NFL/league
+    # data provider - do not label it "official". Much of the on-field data it distributes
+    # (play-by-play, schedules, scores) is DERIVED FROM authoritative/official sources
+    # (the league's own play-by-play feeds), but nflverse's own role is aggregation,
+    # cleaning, and redistribution, and some derived tables (depth charts, some injury
+    # data) are further aggregated from third-party reporting with no official backing at
+    # all. See docs/DATA_SOURCES.md for the per-dataset nuance.
+    trust_level: third_party_aggregated
+    used_for:
+      - games_schedules_table
+      - play_by_play
+      - feature_engineering_inputs (Phase 2+)
+      - historical_market_lines (spread/total/moneyline fields bundled in the raw schedules
+        snapshot only; deliberately NOT promoted into the normalized games table - see
+        docs/PHASE1_DATA_REPORT.md#football-data-vs-market-data; a separate market-data
+        representation must be built deliberately before Phase 2/3 uses these, and it must
+        only ever feed the market-aware track per docs/MODEL_SPEC.md)
+    known_issues: >
+      Team abbreviations change over relocations (STL/LA/LAR for the Rams; SD/LAC for the
+      Chargers; OAK/LV for the Raiders) — normalized via nflverse's own team_id, not
+      hand-maintained, see src/nfl_predict/data/teams.py. `participation` has no season/week
+      columns of its own (keyed by nflverse_game_id + play_id; must be joined to attach
+      season/week). `gametime` in schedules has no published UTC offset (documented as
+      Eastern Time but not resolved to a timezone-aware value in Phase 1 — see
+      src/nfl_predict/data/games.py). nflreadpy raises ValueError for a season outside a
+      dataset's supported range, and raises for an ENTIRE requested season list if any one
+      season in it is out of range — this project always fetches one season at a time to
+      isolate failures (see docs/PHASE1_DATA_REPORT.md). nflreadpy does not expose a
+      resolvable per-fetch release/version identifier (nflverse-data publishes rolling
+      GitHub release tags, not per-fetch immutable versions) — `source_release_identifier`
+      is recorded as null in every manifest for this source; see
+      docs/ARCHITECTURE.md#raw-data-provenance.
+    raw_storage_convention: "data/raw/nflverse/<dataset_name>/<retrieval_id>/{data.parquet,manifest.json}"

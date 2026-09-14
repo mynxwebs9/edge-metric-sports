@@ -1,0 +1,41 @@
+{
+  "events": [
+    {
+      "provider_event_id": "evt_1",
+      "game_id": "2024_01_BAL_KC",
+      "home_team": "Kansas City Chiefs",
+      "away_team": "Baltimore Ravens",
+      "commence_time": "2024-09-05T20:20:00Z"
+    }
+  ],
+  "markets": [
+    {
+      "provider_event_id": "evt_1",
+      "fetched_at": "2024-09-03T10:00:00Z",
+      "bookmaker": "fixture_book",
+      "home_spread_traditional": -2.5,
+      "away_spread_traditional": 2.5,
+      "home_spread_price": -110,
+      "away_spread_price": -110,
+      "home_moneyline": -140,
+      "away_moneyline": 120,
+      "total_line": 46.5,
+      "over_price": -110,
+      "under_price": -110
+    },
+    {
+      "provider_event_id": "evt_1",
+      "fetched_at": "2024-09-05T18:00:00Z",
+      "bookmaker": "fixture_book",
+      "home_spread_traditional": -3.5,
+      "away_spread_traditional": 3.5,
+      "home_spread_price": -108,
+      "away_spread_price": -112,
+      "home_moneyline": -148,
+      "away_moneyline": 124,
+      "total_line": 46.0,
+      "over_price": -110,
+      "under_price": -110
+    }
+  ]
+}

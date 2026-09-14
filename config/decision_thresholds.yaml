@@ -1,0 +1,41 @@
+# SUPERSEDED by config/decision_rules.yaml (Phase 7). This file's simpler
+# market->threshold schema was a Phase 0 placeholder written before the decision engine's
+# actual shape (5 decision categories, versioned per-rule provenance/rationale/status) was
+# known. Nothing in src/nfl_predict/decision reads this file - kept, still all-null, purely
+# as a historical record that no ad-hoc tuning ever happened here. See
+# docs/DECISION_ENGINE.md and docs/PHASE7_DECISION_ENGINE_REPORT.md for what's actually used.
+#
+# IMPORTANT: values below are UNSET (null), not defaults. code must treat null as "not
+# configured," never silently fall back to a made-up number.
+#
+# Schema (per market: moneyline, spread, total):
+#
+# markets:
+#   <market_name>:
+#     bet_min_edge: null          # minimum model-vs-market edge to qualify as BET
+#     lean_min_edge: null         # minimum edge to qualify as LEAN (< bet_min_edge)
+#     max_model_uncertainty: null # reject/downgrade if model uncertainty exceeds this
+#     veto_conditions: []         # research-agent flag categories that force VETO regardless of edge
+#
+# max_model_uncertainty is read against the calibrated predictive-distribution outputs
+# defined in docs/MODEL_SPEC.md#predictive-uncertainty (e.g. cover/over-under probability
+# calibration, interval width) — not a bare point-estimate margin. Per
+# docs/BACKTESTING_RULES.md#predictive-uncertainty-validation, a threshold here is only
+# meaningful once that validation has actually been run for the model version it applies to.
+
+markets:
+  moneyline:
+    bet_min_edge: null
+    lean_min_edge: null
+    max_model_uncertainty: null
+    veto_conditions: []
+  spread:
+    bet_min_edge: null
+    lean_min_edge: null
+    max_model_uncertainty: null
+    veto_conditions: []
+  total:
+    bet_min_edge: null
+    lean_min_edge: null
+    max_model_uncertainty: null
+    veto_conditions: []
