@@ -64,6 +64,38 @@ def test_build_prompt_from_template_fills_real_fields_and_rejects_unknown_placeh
         build_prompt_from_template("Hello {{not_a_real_field}}", context)
 
 
+def test_build_prompt_from_template_states_the_real_publication_status_not_just_the_decision():
+    """Real bug: a QUALIFIED_BET decision's reason codes alone (e.g. NO_DEMONSTRATED_EDGE)
+    read as if nothing was recommended, even when this exact market_type WAS published as
+    the game's official Best Bet - the generated article said "the system is not
+    recommending a bet on either side" for a game where the moneyline was a real, published
+    pick. The prompt must be told the actual published state so it can't contradict it."""
+    base_context = {
+        "game_id": GAME_ID, "season": SEASON, "week": WEEK, "home_team_id": HOME_ID, "away_team_id": AWAY_ID,
+        "home_team_name": "Kansas City Chiefs", "away_team_name": "Denver Broncos",
+        "home_team_abbr": "KC", "away_team_abbr": "DEN", "kickoff_timestamp": KICKOFF,
+        "model": {"elo_predicted_margin": -3.2, "elo_home_win_probability": 0.39, "ridge_predicted_margin": -3.4, "lightgbm_predicted_margin": -0.9},
+        "market": {"available": True, "home_spread_traditional": -2.5, "no_vig_home_win_probability": 0.56, "consensus_book_keys": ["draftkings", "fanduel"]},
+        "research": None,
+    }
+    qualified_spread = {"decision": "QUALIFIED_BET", "reason_codes": ["NO_DEMONSTRATED_EDGE"]}
+    qualified_moneyline = {"decision": "QUALIFIED_BET", "reason_codes": ["NO_DEMONSTRATED_EDGE"]}
+
+    context = {**base_context, "decisions": {"spread": qualified_spread, "moneyline": qualified_moneyline}, "published_market_types": ["moneyline"]}
+    prompt = build_prompt_from_template(PROMPT_TEMPLATE, context)
+    assert "spread" in prompt.lower()
+    assert "NO - this qualified" in prompt  # spread: qualified but not published
+    assert "YES - this was published" in prompt  # moneyline: actually published
+
+    context_neither_published = {**base_context, "decisions": {"spread": qualified_spread, "moneyline": qualified_moneyline}, "published_market_types": []}
+    prompt_neither = build_prompt_from_template(PROMPT_TEMPLATE, context_neither_published)
+    assert prompt_neither.count("NO - this qualified") == 2  # neither market type was published
+
+    context_not_qualified = {**base_context, "decisions": {"spread": {"decision": "NO_BET", "reason_codes": ["MISSING_LIVE_DATA"]}, "moneyline": None}, "published_market_types": []}
+    prompt_not_qualified = build_prompt_from_template(PROMPT_TEMPLATE, context_not_qualified)
+    assert "not applicable" in prompt_not_qualified
+
+
 def test_write_prediction_preview_with_the_fixture_provider_persists_a_real_article(content_data_dir):
     result = write_prediction_preview(
         SEASON, WEEK, GAME_ID, HOME_ID, AWAY_ID, KICKOFF,

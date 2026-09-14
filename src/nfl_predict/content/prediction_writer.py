@@ -195,6 +195,20 @@ def _format_decision_reasons_text(record: dict | None) -> str:
     return "; ".join(lang.translate_reason_code(c) for c in codes)
 
 
+def _format_publication_status_text(record: dict | None, market_type: str, published_market_types: set[str]) -> str:
+    """States the one fact the reason codes alone can't convey: whether THIS market_type was
+    actually published as the game's official pick. A QUALIFIED_BET decision is a real,
+    independent-per-market-type verdict - publishing it is always a separate, deliberate step
+    (never automatic, and never both market types for one game), so the reason codes alone
+    (e.g. NO_DEMONSTRATED_EDGE) can make an actually-published pick read as if nothing was
+    recommended. See docs/DECISION_ENGINE.md."""
+    if record is None or record.get("decision") != "QUALIFIED_BET":
+        return "not applicable - this market type did not qualify"
+    if market_type in published_market_types:
+        return "YES - this was published as this game's official Best Bet"
+    return "NO - this qualified under our criteria but was NOT published as an official pick (at most one market type is ever published per game)"
+
+
 def _format_research_summary_text(research: dict | None) -> str:
     if research is None:
         return "No research has been conducted for this game yet."
@@ -223,6 +237,13 @@ def gather_game_content_context(
     market = recon.latest_market_point(season, week, game_id)
     decisions = recon.latest_decisions_for_game(season, week, game_id)
     research = recon.latest_research_summary(season, week, game_id)
+    # Real bug caught by a user reading a generated article: without this, the model only
+    # sees a QUALIFIED_BET decision's reason codes (e.g. NO_DEMONSTRATED_EDGE) and has no way
+    # to know whether that market_type was actually published as an official pick - it wrote
+    # "the system is not recommending a bet on either side" for a game where the moneyline
+    # WAS a published Best Bet, directly contradicting what the same page shows. Passing the
+    # real published state closes that gap.
+    published_market_types = sorted(recon.published_best_bet_market_types(game_id))
 
     return {
         "game_id": game_id, "season": season, "week": week,
@@ -234,6 +255,7 @@ def gather_game_content_context(
         "market": asdict(market) if market is not None else None,
         "decisions": decisions,
         "research": research,
+        "published_market_types": published_market_types,
     }
 
 
@@ -249,6 +271,7 @@ def build_prompt_from_template(template_text: str, context: dict) -> str:
     home_spread = market_dict.get("home_spread_traditional") if market_dict and market_dict.get("available") else None
     spread_record = decisions.get("spread")
     moneyline_record = decisions.get("moneyline")
+    published_market_types = set(context.get("published_market_types") or ())
 
     substitutions = {
         "away_team_name": context["away_team_name"], "home_team_name": context["home_team_name"],
@@ -263,8 +286,10 @@ def build_prompt_from_template(template_text: str, context: dict) -> str:
         "disagreement_text": _format_disagreement_text((model or {}).get("elo_predicted_margin"), home_spread, home_abbr, away_abbr),
         "spread_decision_label": lang.translate_decision(spread_record["decision"]) if spread_record else "not yet decided",
         "spread_decision_reasons_text": _format_decision_reasons_text(spread_record),
+        "spread_published_text": _format_publication_status_text(spread_record, "spread", published_market_types),
         "moneyline_decision_label": lang.translate_decision(moneyline_record["decision"]) if moneyline_record else "not yet decided",
         "moneyline_decision_reasons_text": _format_decision_reasons_text(moneyline_record),
+        "moneyline_published_text": _format_publication_status_text(moneyline_record, "moneyline", published_market_types),
         "research_summary_text": _format_research_summary_text(context["research"]),
     }
     unknown = set(_PLACEHOLDER_RE.findall(template_text)) - set(substitutions)
