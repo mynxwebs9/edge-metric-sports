@@ -31,12 +31,19 @@ export function formatUnits(value: number | null): string {
   return `${sign}${value.toFixed(1)}u`;
 }
 
+// Every timestamp the API returns is genuine UTC (see nfl_predict.kickoff_time for how
+// kickoff specifically gets resolved from the schedule's ambiguous source data) - display
+// is fixed to US Pacific here, not the viewer's or server's local zone, so the site reads
+// consistently for its owner regardless of who's looking or where this renders.
+const DISPLAY_TIME_ZONE = "America/Los_Angeles";
+
 export function formatKickoff(iso: string | null): string {
   if (!iso) return "Kickoff TBD";
   const date = new Date(iso.endsWith("Z") || iso.includes("+") ? iso : `${iso}Z`);
   if (Number.isNaN(date.getTime())) return "Kickoff TBD";
   return new Intl.DateTimeFormat("en-US", {
-    weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short",
+    weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    timeZoneName: "short", timeZone: DISPLAY_TIME_ZONE,
   }).format(date);
 }
 
@@ -45,7 +52,8 @@ export function formatTimestamp(iso: string | null): string {
   const date = new Date(iso.endsWith("Z") || iso.includes("+") ? iso : `${iso}Z`);
   if (Number.isNaN(date.getTime())) return "Not yet available";
   return new Intl.DateTimeFormat("en-US", {
-    month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short",
+    month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    timeZoneName: "short", timeZone: DISPLAY_TIME_ZONE,
   }).format(date);
 }
 
