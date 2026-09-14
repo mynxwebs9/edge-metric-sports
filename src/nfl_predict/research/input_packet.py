@@ -170,7 +170,7 @@ def _live_elo_model() -> EloModel:
     )
     conn = get_connection()
     init_schema(conn)
-    seasons = [r[0] for r in conn.execute("SELECT DISTINCT season FROM games").fetchall()]
+    seasons = [r["season"] for r in conn.execute("SELECT DISTINCT season FROM games").fetchall()]
     targets = build_targets(conn, seasons)
     conn.close()
 

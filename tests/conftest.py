@@ -72,6 +72,27 @@ def _no_real_live_credentials(monkeypatch):
     yield
 
 
+@pytest.fixture(autouse=True)
+def _no_real_storage_backend(monkeypatch):
+    """A real incident (caught live, the same day the Phase 10 Postgres backend was first
+    connected to a genuine hosted database): once `.env` gained a real `NFL_DATABASE_URL`
+    pointing at production Supabase, `tests/storage/test_blob_store.py` - built assuming the
+    ambient environment is always the local/sqlite backend - silently started writing real
+    test rows (`k.json`, `log.jsonl`, fake research runs) into the REAL production `blobs`
+    table, because `get_blob_store()`/`get_connection()` read `NFL_STORAGE_BACKEND`/
+    `NFL_DATABASE_URL` straight from `get_settings()` like everything else. Exactly the same
+    class of bug `_no_real_live_credentials` above already exists to prevent for API keys -
+    this is that fixture's counterpart for the storage backend: every test starts on the
+    local/sqlite backend regardless of what's in `.env` or the OS environment, so a test has
+    to deliberately opt back into Postgres (as tests/data/test_postgres_connection.py and
+    tests/storage/test_postgres_blob_store.py already do, via their own explicit
+    NFL_TEST_POSTGRES_URL-backed fixtures, which bypass this ambient default entirely)."""
+    monkeypatch.setenv("NFL_STORAGE_BACKEND", "sqlite")
+    monkeypatch.delenv("NFL_DATABASE_URL", raising=False)
+    get_settings.cache_clear()
+    yield
+
+
 @pytest.fixture
 def isolated_data_dir(tmp_path, monkeypatch):
     """Points NFL_DATA_DIR at a throwaway directory so data tests never touch the real

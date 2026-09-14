@@ -69,6 +69,35 @@ def test_games_repository_get_by_season_round_trips(pg_conn):
     assert [r["game_id"] for r in rows] == ["2026_01_DEN_KC"]
 
 
+def test_live_elo_model_builds_successfully_against_the_postgres_backend(pg_conn):
+    """Regression: `_live_elo_model()` used to do `r[0]` positional row access on
+    `SELECT DISTINCT season FROM games` results - fine for sqlite3.Row (supports both
+    positional and name-based access) but a real production KeyError(0) against Postgres,
+    where get_connection() returns plain dict-like rows (name-based access only). Caught via
+    a real production run against this exact database once it went live - see
+    src/nfl_predict/research/input_packet.py's `_live_elo_model`."""
+    from nfl_predict.data.repositories import GamesRepository, TeamsRepository
+    from nfl_predict.research.input_packet import _live_elo_model
+
+    TeamsRepository(pg_conn).upsert_teams([
+        {"team_id": "2310", "canonical_abbr": "KC", "name": "Kansas City Chiefs", "nickname": None, "conference": None, "division": None},
+        {"team_id": "1400", "canonical_abbr": "DEN", "name": "Denver Broncos", "nickname": None, "conference": None, "division": None},
+    ])
+    GamesRepository(pg_conn).upsert_games(
+        [{
+            "game_id": "2026_01_DEN_KC", "season": 2026, "season_type": "REG", "week": 1,
+            "game_date": "2026-09-14", "kickoff_time_naive": "2026-09-14T20:15:00",
+            "home_team_id": "2310", "away_team_id": "1400", "home_team_abbr": "KC", "away_team_abbr": "DEN",
+            "home_score": None, "away_score": None, "venue": None, "game_status": "scheduled",
+        }],
+        retrieval_id="r1",
+    )
+    pg_conn.commit()
+
+    model = _live_elo_model()  # must not raise KeyError(0)
+    assert model is not None
+
+
 def test_schedule_provider_reads_through_the_postgres_backend(pg_conn):
     from nfl_predict.data.repositories import GamesRepository, TeamsRepository
     from nfl_predict.live import schedule_provider
