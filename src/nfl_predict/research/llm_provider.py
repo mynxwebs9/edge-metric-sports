@@ -189,10 +189,25 @@ def _research_output_json_schema() -> dict:
                 "type": "array", "items": {"type": "string"},
                 "description": "One array entry per distinct missing item - never a single string with items joined by commas or newlines, even if there is only one item.",
             },
-            "material_facts": {"type": "array", "items": claim_schema},
-            "uncertain_reports": {"type": "array", "items": claim_schema},
+            # A real call once returned this field's value as a raw string containing
+            # stray tool-call-like syntax ('<parameter name="item">...') instead of a clean
+            # JSON array of claim_schema objects - a model-side compliance slip on this
+            # complex nested schema, correctly rejected rather than salvaged/coerced.
+            # Descriptions on this and the other claim_schema-typed arrays below are the
+            # mitigation, same reasoning as missing_information above.
+            "material_facts": {
+                "type": "array", "items": claim_schema,
+                "description": "A JSON array of claim objects - never a plain string, and never any XML/tool-call-like syntax embedded in a field value.",
+            },
+            "uncertain_reports": {
+                "type": "array", "items": claim_schema,
+                "description": "A JSON array of claim objects - never a plain string, and never any XML/tool-call-like syntax embedded in a field value.",
+            },
             "external_model_opinions": {"type": "array", "items": external_prediction_schema},
-            "analyst_opinions": {"type": "array", "items": claim_schema},
+            "analyst_opinions": {
+                "type": "array", "items": claim_schema,
+                "description": "A JSON array of claim objects - never a plain string, and never any XML/tool-call-like syntax embedded in a field value.",
+            },
         },
         "required": [
             "research_classification", "qb_status", "ol_status", "skill_position_status",
