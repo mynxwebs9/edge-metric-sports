@@ -180,7 +180,15 @@ def _research_output_json_schema() -> dict:
             "defensive_personnel_status": {"type": "string"},
             "weather_status": {"type": "string"},
             "coaching_status": {"type": "string"},
-            "missing_information": {"type": "array", "items": {"type": "string"}},
+            # A real call once submitted this as a single comma-joined string instead of an
+            # array (caught by the strict parser in research/parsing.py, which correctly
+            # refused to coerce it rather than silently splitting on commas - a genuine
+            # array item can legitimately contain a comma). This description is the
+            # mitigation: make the required shape unambiguous rather than loosen validation.
+            "missing_information": {
+                "type": "array", "items": {"type": "string"},
+                "description": "One array entry per distinct missing item - never a single string with items joined by commas or newlines, even if there is only one item.",
+            },
             "material_facts": {"type": "array", "items": claim_schema},
             "uncertain_reports": {"type": "array", "items": claim_schema},
             "external_model_opinions": {"type": "array", "items": external_prediction_schema},
