@@ -82,7 +82,7 @@ class AnthropicContentWriterProvider(ContentWriterProvider):
     API_VERSION = "2023-06-01"
 
     def __init__(
-        self, model_name: str = "claude-sonnet-5", api_key: str | None = None, max_tokens: int = 1024,
+        self, model_name: str = "claude-sonnet-5", api_key: str | None = None, max_tokens: int = 2048,
         pricing_config: dict | None = None, max_estimated_cost_usd: float | None = _UNSET,
     ):
         self._api_key = api_key if api_key is not None else get_settings().research_llm_api_key
