@@ -31,7 +31,7 @@ SEASON, WEEK = 2026, 1
 HOME_ID, AWAY_ID = "2310", "1400"
 KICKOFF = "2026-09-14T20:15:00"
 CONTENT_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "content_fixture.json"
-PROMPT_TEMPLATE = (Path(__file__).resolve().parents[2] / "prompts" / "prediction_writer_v1.md").read_text(encoding="utf-8")
+PROMPT_TEMPLATE = (Path(__file__).resolve().parents[2] / "prompts" / "prediction_writer_v2.md").read_text(encoding="utf-8")
 
 
 def test_gather_game_content_context_with_no_data_yet_is_all_none(content_data_dir):

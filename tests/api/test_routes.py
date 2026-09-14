@@ -192,7 +192,7 @@ def test_game_detail_includes_a_real_generated_preview_article_when_one_exists(a
     write_prediction_preview(
         SEASON, WEEK, GAME_ID, "2310", "1400", "2026-09-14T20:15:00",
         provider=FixtureContentWriterProvider(CONTENT_FIXTURE),
-        prompt_template_text=(Path(__file__).resolve().parents[2] / "prompts" / "prediction_writer_v1.md").read_text(encoding="utf-8"),
+        prompt_template_text=(Path(__file__).resolve().parents[2] / "prompts" / "prediction_writer_v2.md").read_text(encoding="utf-8"),
         run_id="test_preview_run", now="2026-09-12T12:00:00+00:00",
     )
 
@@ -200,7 +200,7 @@ def test_game_detail_includes_a_real_generated_preview_article_when_one_exists(a
     body = resp.json()
     assert body["preview"]["available"] is True
     assert "Elo projects DEN by 3.2" in body["preview"]["text"]
-    assert body["preview"]["prompt_version"] == "prediction_writer_v1"
+    assert body["preview"]["prompt_version"] == "prediction_writer_v2"
     assert body["preview"]["model_provider"] == "fixture"
 
 

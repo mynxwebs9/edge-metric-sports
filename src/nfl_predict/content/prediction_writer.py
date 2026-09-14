@@ -41,8 +41,8 @@ from nfl_predict.research.cost_tracking import (
 
 logger = get_logger(__name__)
 
-DEFAULT_PROMPT_PATH = Path(__file__).resolve().parents[3] / "prompts" / "prediction_writer_v1.md"
-PREDICTION_WRITER_PROMPT_VERSION = "prediction_writer_v1"
+DEFAULT_PROMPT_PATH = Path(__file__).resolve().parents[3] / "prompts" / "prediction_writer_v2.md"
+PREDICTION_WRITER_PROMPT_VERSION = "prediction_writer_v2"
 _UNSET = object()
 
 _PLACEHOLDER_RE = re.compile(r"\{\{(\w+)\}\}")
@@ -82,7 +82,7 @@ class AnthropicContentWriterProvider(ContentWriterProvider):
     API_VERSION = "2023-06-01"
 
     def __init__(
-        self, model_name: str = "claude-sonnet-5", api_key: str | None = None, max_tokens: int = 700,
+        self, model_name: str = "claude-sonnet-5", api_key: str | None = None, max_tokens: int = 1024,
         pricing_config: dict | None = None, max_estimated_cost_usd: float | None = _UNSET,
     ):
         self._api_key = api_key if api_key is not None else get_settings().research_llm_api_key
