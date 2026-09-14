@@ -18,6 +18,8 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+
+from nfl_predict.kickoff_time import resolve_kickoff_to_utc
 from pathlib import Path
 
 from nfl_predict.config import get_settings
@@ -100,8 +102,12 @@ def select_latest_valid_pregame_snapshot(
         record = read_pregame_run(season, week, game_id, run_id)
         run_dt = _parse(record["run_timestamp"])
 
+        # kickoff_timestamp is the schedule's ambiguous `kickoff_time_naive` (Eastern Time,
+        # no offset given - see nfl_predict.data.games) - resolve to real UTC before
+        # comparing against run_dt (genuinely UTC), or a run could be wrongly excluded
+        # (or wrongly accepted) by up to 5 hours.
         kickoff = record.get("kickoff_timestamp")
-        if kickoff is not None and run_dt >= _parse(kickoff):
+        if kickoff is not None and run_dt >= _parse(resolve_kickoff_to_utc(kickoff)):
             continue  # a run at/after kickoff can never be a valid pregame snapshot
 
         if not record["elo_available"]:

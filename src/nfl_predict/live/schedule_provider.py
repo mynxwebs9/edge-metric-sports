@@ -19,6 +19,7 @@ from dataclasses import dataclass
 
 from nfl_predict.data.db import get_connection, init_schema
 from nfl_predict.data.repositories import ManifestsRepository
+from nfl_predict.kickoff_time import resolve_kickoff_to_utc
 
 FINAL_STATUS = "final"
 SCHEDULED_STATUS = "scheduled"
@@ -90,7 +91,12 @@ def get_schedule(season: int, week: int | None = None) -> ScheduleSnapshot:
             game_id=r["game_id"], season=r["season"], week=r["week"], season_type=r["season_type"],
             home_team_id=r["home_team_id"], away_team_id=r["away_team_id"],
             home_team_abbr=r["home_team_abbr"], away_team_abbr=r["away_team_abbr"],
-            kickoff_timestamp=r["kickoff_time_naive"], game_status=r["game_status"],
+            # kickoff_time_naive is Eastern Time with no offset given (nflverse's
+            # convention - see nfl_predict.data.games); resolved to real UTC here since
+            # this is the schedule's public-facing interface - the API/website display and
+            # anything else consuming ScheduleGame needs an unambiguous instant, not a raw
+            # local clock reading.
+            kickoff_timestamp=resolve_kickoff_to_utc(r["kickoff_time_naive"]), game_status=r["game_status"],
         )
         for r in rows
     )

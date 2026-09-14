@@ -33,10 +33,15 @@ def test_dome_venue_returns_no_forecast_numbers_never_fabricated():
 
 def test_outdoor_venue_preserves_both_forecast_and_kickoff_timestamps(monkeypatch):
     """Forecast (retrieval) timestamp and kickoff timestamp are distinct fields, both
-    preserved - never collapsed into one or overwritten."""
+    preserved - never collapsed into one or overwritten. Also proves the real kickoff-time
+    bug fix: "2026-09-14T20:15:00" is the schedule's ambiguous Eastern-time kickoff (nflverse
+    convention), whose REAL UTC instant is 2026-09-15T00:15:00 - Open-Meteo's hourly buckets
+    are genuine UTC, so matching the nearest hour only works correctly once kickoff is
+    resolved to UTC first (the bug this replaced compared them unresolved and picked a
+    forecast hour 4-5 hours off)."""
     fake_payload = {
         "hourly": {
-            "time": ["2026-09-14T19:00", "2026-09-14T20:00", "2026-09-14T21:00"],
+            "time": ["2026-09-14T23:00", "2026-09-15T00:00", "2026-09-15T01:00"],
             "temperature_2m": [70.0, 72.0, 74.0],
             "windspeed_10m": [5.0, 6.0, 7.0],
             "windgusts_10m": [10.0, 11.0, 12.0],
@@ -60,7 +65,7 @@ def test_outdoor_venue_preserves_both_forecast_and_kickoff_timestamps(monkeypatc
     forecast = provider.get_forecast_for_venue("2310", "GEHA Field at Arrowhead Stadium", "2026-09-14T20:15:00")
     assert forecast.kickoff_timestamp == "2026-09-14T20:15:00"
     assert forecast.forecast_timestamp != forecast.kickoff_timestamp
-    # 20:15 is closest to the 20:00 hourly bucket
+    # real kickoff (00:15 UTC) is closest to the 00:00 UTC hourly bucket
     assert forecast.temperature_f == 72.0
     assert forecast.wind_gust_mph == 11.0
 

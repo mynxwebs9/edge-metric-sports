@@ -15,6 +15,21 @@ from nfl_predict.research.historical_guard import (
 NOW = "2026-09-11T12:00:00+00:00"
 
 
+def test_a_naive_eastern_kickoff_that_is_still_hours_away_in_real_utc_is_not_treated_as_past():
+    """Real production bug: kickoff_timestamp comes from the schedule's `kickoff_time_naive`
+    column, which is Eastern Time with no offset given (nflverse's convention - see
+    nfl_predict.data.games). This used to be compared directly against a real UTC `now` as
+    if it were already UTC, so an 8:15 PM Eastern kickoff (00:15 UTC the next day) was
+    wrongly treated as already having happened as early as 8:16 PM UTC - 4+ hours before it
+    actually kicks off. Caught live against a real game whose actual kickoff (5:15 PM
+    Pacific / 00:15 UTC) had NOT yet passed."""
+    assert_research_may_proceed(
+        kickoff_timestamp="2026-09-14T20:15:00",  # naive - Eastern, per nflverse; real UTC kickoff is 2026-09-15T00:15:00
+        research_timestamp="2026-09-14T21:00:00+00:00",  # real UTC "now" - genuinely BEFORE the real 00:15 UTC kickoff
+        now="2026-09-14T21:00:00+00:00",
+    )  # must not raise - kickoff has not actually happened yet
+
+
 def test_genuinely_prospective_research_is_allowed_without_authorization():
     assert_research_may_proceed(
         kickoff_timestamp="2026-09-14T17:00:00+00:00",

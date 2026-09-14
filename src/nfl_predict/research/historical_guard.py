@@ -21,6 +21,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from nfl_predict.kickoff_time import resolve_kickoff_to_utc
+
 
 class HistoricalResearchLeakageRisk(Exception):
     """Raised when a research run would use ordinary current-web search on a game whose
@@ -72,7 +74,13 @@ def assert_research_may_proceed(
     if kickoff_timestamp is None:
         return
 
-    kickoff_dt = _parse(kickoff_timestamp)
+    # kickoff_timestamp comes straight from the schedule's `kickoff_time_naive` column,
+    # which nflverse documents as Eastern Time with no offset given (see
+    # nfl_predict.data.games) - resolve it to a real UTC instant before comparing against
+    # `now_dt`/`research_dt`, which already are genuine UTC. Treating the naive Eastern
+    # string as if it were already UTC (the bug this replaced) made the system think a game
+    # had kicked off up to 5 hours before it actually had.
+    kickoff_dt = _parse(resolve_kickoff_to_utc(kickoff_timestamp))
 
     if research_dt > kickoff_dt:
         raise InvalidPregameTimestampError(

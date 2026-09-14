@@ -17,6 +17,7 @@ import urllib.request
 from datetime import datetime, timezone
 
 from nfl_predict.config import get_venues_config
+from nfl_predict.kickoff_time import resolve_kickoff_to_utc
 from nfl_predict.research.current_data_providers import WeatherForecast, WeatherProvider
 
 OPEN_METEO_BASE_URL = "https://api.open-meteo.com/v1/forecast"
@@ -35,9 +36,12 @@ def get_venue(team_id: str) -> dict:
 
 
 def _nearest_hour_index(hourly_times: list[str], kickoff_iso: str) -> int:
-    kickoff_dt = datetime.fromisoformat(kickoff_iso)
-    if kickoff_dt.tzinfo is None:
-        kickoff_dt = kickoff_dt.replace(tzinfo=timezone.utc)
+    # kickoff_iso is the schedule's ambiguous `kickoff_time_naive` (Eastern Time, no offset
+    # given - see nfl_predict.data.games); Open-Meteo's hourly buckets are requested and
+    # returned in genuine UTC (`timezone=UTC` above). Resolving kickoff to real UTC first is
+    # what makes this comparison meaningful - comparing it unresolved (the bug this
+    # replaced) picked a forecast hour 4-5 hours off from the real kickoff instant.
+    kickoff_dt = datetime.fromisoformat(resolve_kickoff_to_utc(kickoff_iso))
     diffs = []
     for t in hourly_times:
         t_dt = datetime.fromisoformat(t)
