@@ -29,6 +29,19 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        {/* Plain literal <script> tag, deliberately not next/script - AdSense's site-ownership
+            verification checks for this exact tag's presence in the raw page source, and
+            next/script's "beforeInteractive" strategy renders only a <link rel="preload"> plus
+            a JS-executed bootstrap call in production, never a literal <script src="..."> - a
+            known mismatch with AdSense's snippet verification. Confirmed by inspecting the
+            actual prerendered production HTML output. */}
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1516960995259341"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className="flex min-h-full flex-col">
         <SiteHeader />
         <main className="flex-1">{children}</main>
