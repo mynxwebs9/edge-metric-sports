@@ -107,6 +107,26 @@ def test_missing_information_with_a_non_string_entry_raises_parse_error():
         parse_research_output(json.dumps(bad), "r1", "g1", "ts", "v1", "p", "m", "h")
 
 
+def test_missing_information_as_a_bare_string_is_wrapped_not_rejected():
+    """Real, recurring model mistake: writing this one plain-string-list field as a bare
+    string instead of a single-element array. Safe to wrap because the content - the
+    model's exact text - is preserved verbatim, nothing is invented."""
+    bad = json.loads(VALID_OUTPUT)
+    bad["missing_information"] = "Final injury designations were not yet available."
+    findings = parse_research_output(json.dumps(bad), "r1", "g1", "ts", "v1", "p", "m", "h")
+    assert findings.missing_information == ("Final injury designations were not yet available.",)
+
+
+def test_material_facts_as_a_bare_string_still_raises_parse_error_not_wrapped():
+    """Unlike `missing_information`, this field holds structured Claim objects - wrapping a
+    bare string would require fabricating fields (category, materiality_level, ...), so it
+    must still be rejected outright, never silently coerced."""
+    bad = json.loads(VALID_OUTPUT)
+    bad["material_facts"] = "Lions' starting QB is questionable."
+    with pytest.raises(ResearchOutputParseError, match="'material_facts' must be a JSON array"):
+        parse_research_output(json.dumps(bad), "r1", "g1", "ts", "v1", "p", "m", "h")
+
+
 def test_a_claims_sources_field_as_a_non_list_raises_parse_error_not_typeerror():
     bad = json.loads(VALID_OUTPUT)
     bad["material_facts"] = [{

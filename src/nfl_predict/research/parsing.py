@@ -127,7 +127,18 @@ def parse_research_output(
     external_model_opinions = tuple(
         _parse_external_prediction(e) for e in _require_list(data.get("external_model_opinions", []), "'external_model_opinions'")
     )
-    missing_information_raw = _require_list(data.get("missing_information", []), "'missing_information'")
+    raw_missing_information = data.get("missing_information", [])
+    if isinstance(raw_missing_information, str):
+        # Real, recurring failure mode: the model sometimes writes this one field as a bare
+        # string instead of a single-element array, even with an explicit array description
+        # in the tool schema (non-strict tool use gives no hard guarantee - see
+        # llm_provider.py's module docstring). Wrapping it is safe here specifically because
+        # `missing_information` is a plain list of strings - the model's exact text is kept
+        # verbatim, nothing is invented. This does NOT apply to the list-of-object fields
+        # below (material_facts/uncertain_reports/analyst_opinions), which still reject a
+        # bare string outright, since coercing those would require fabricating structure.
+        raw_missing_information = [raw_missing_information]
+    missing_information_raw = _require_list(raw_missing_information, "'missing_information'")
     if not all(isinstance(x, str) for x in missing_information_raw):
         raise ResearchOutputParseError(f"'missing_information' entries must all be strings, got: {missing_information_raw!r}"[:300])
     missing_information = tuple(missing_information_raw)
