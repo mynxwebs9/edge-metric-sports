@@ -245,5 +245,23 @@ def published_best_bet_market_types(game_id: str) -> set[str]:
     return {p["market_type"] for p in current_best_bets() if p["game_id"] == game_id}
 
 
+def system_pick_for_game(game_id: str) -> dict | None:
+    """The real, published `ALL_MODEL_PREDICTIONS` pick for this game - the model's own
+    straight-up selection, at the real market price, published for EVERY game regardless of
+    whether the decision engine ever reaches `QUALIFIED_BET` (see
+    `nfl_predict.decision.pick_publishing`). This is deliberately a different thing from a
+    Best Bet: every game gets one of these once its model/market data exists; only some
+    games separately qualify for (and get published as) an actual Best Bet - see
+    `published_best_bet_market_types` for that distinct, much narrower set. Returns `None`,
+    never fabricated, if nothing has been published yet for this game (e.g. before the first
+    real pipeline run of the week) - shown by VOIDED picks are excluded (a void means this
+    specific pick was invalidated, not a real system pick to display)."""
+    picks = read_current_picks()
+    for p in picks:
+        if p["game_id"] == game_id and p["category"] == "ALL_MODEL_PREDICTIONS" and p["status"] != "VOID":
+            return p
+    return None
+
+
 def rule_set_version() -> str:
     return load_rule_set().rule_set_version

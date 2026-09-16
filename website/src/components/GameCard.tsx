@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { GameCard as GameCardType } from "@/lib/types";
-import { formatKickoff, formatProbabilityPct, formatSpread } from "@/lib/format";
-import DecisionBadge from "./DecisionBadge";
+import { formatKickoff, formatMoneyline, formatProbabilityPct, formatSpread } from "@/lib/format";
 
 function projectedMarginText(game: GameCardType): string | null {
   const margin = game.model.elo_predicted_margin;
@@ -52,8 +51,21 @@ export default function GameCard({ game }: { game: GameCardType }) {
       </dl>
 
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted">System</span>
-        <DecisionBadge decision={game.decision.decision} label={game.decision.decision_label} />
+        <span className="text-xs font-medium uppercase tracking-wide text-muted">Pick</span>
+        {game.system_pick.available ? (
+          <span className="flex items-center gap-1.5">
+            <span className="font-mono text-sm font-bold">
+              {game.system_pick.selection_team?.abbr} {formatMoneyline(game.system_pick.price)}
+            </span>
+            {game.system_pick.is_also_best_bet && (
+              <span className="rounded-full bg-qualified/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-qualified">
+                Best Bet
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className="text-sm text-muted">Not available</span>
+        )}
       </div>
 
       {game.research.available && game.research.summary && (

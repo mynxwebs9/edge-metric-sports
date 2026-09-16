@@ -44,6 +44,10 @@ export function makeGameCard(overrides: Partial<GameCard> = {}): GameCard {
       reason_codes: [{ code: "VETO_CONSIDERATION_UNRESOLVED", label: "Significant unresolved pregame risk" }],
       decision_timestamp: "2026-09-12T09:00:00+00:00", is_published_best_bet: false,
     },
+    system_pick: {
+      available: true, selection: "away", selection_team: { team_id: "1400", abbr: "DEN", name: "Denver Broncos", nickname: "Broncos" },
+      price: 120, market_type: "moneyline", status: "PUBLISHED", settlement: null, is_also_best_bet: false,
+    },
     research: {
       available: true, classification: "VETO_CONSIDERATION", classification_label: "Significant risk flagged",
       materiality_level: 4, summary: "Real, sourced QB injury uncertainty.", research_timestamp: "2026-09-12T11:28:00+00:00",
@@ -59,7 +63,7 @@ export function makeGameDetail(overrides: Partial<GameDetail> = {}): GameDetail 
     schema_version: "1", game_id: card.game_id, season: card.season, week: card.week,
     away_team: card.away_team, home_team: card.home_team, kickoff_timestamp: card.kickoff_timestamp,
     game_status: card.game_status, model: card.model, market: card.market,
-    model_market_disagreement_points: -5.7, spread_decision: card.decision,
+    model_market_disagreement_points: -5.7, system_pick: card.system_pick, spread_decision: card.decision,
     moneyline_decision: { available: false, market_type: null, decision: null, decision_label: null, reason_codes: [], decision_timestamp: null, is_published_best_bet: false },
     research: card.research,
     preview: {

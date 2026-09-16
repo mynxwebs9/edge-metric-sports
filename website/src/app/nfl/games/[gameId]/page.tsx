@@ -63,6 +63,28 @@ export default async function GameDetailPage({ params }: PageProps<"/nfl/games/[
         {game.away_team.name} <span className="text-muted">at</span> {game.home_team.name}
       </h1>
 
+      <section className="mb-8 rounded-xl border border-border bg-surface p-5 shadow-sm">
+        <div className="mb-1 flex items-center justify-between">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-muted">System Pick</h2>
+          {game.system_pick.is_also_best_bet && (
+            <span className="rounded-full bg-qualified/15 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-qualified">
+              ✓ Best Bet
+            </span>
+          )}
+        </div>
+        {game.system_pick.available ? (
+          <p className="font-mono text-2xl font-black tracking-tight">
+            {game.system_pick.selection_team?.abbr} {formatMoneyline(game.system_pick.price)}
+          </p>
+        ) : (
+          <p className="text-sm text-muted">Not available for this game yet.</p>
+        )}
+        <p className="mt-1 text-xs text-muted">
+          The model&apos;s own straight-up pick, at the real market price - published for every game. Not every
+          pick clears our bar to become an official Best Bet.
+        </p>
+      </section>
+
       <AdSlot label="game-page-top" className="mb-8 h-24" />
 
       <GamePreview preview={game.preview} />

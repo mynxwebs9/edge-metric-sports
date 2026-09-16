@@ -37,8 +37,33 @@ describe("GameCard", () => {
     expect(link).toHaveAttribute("href", "/nfl/games/2026_01_DEN_KC");
   });
 
-  it("shows the System decision badge", () => {
+  it("always shows a directional pick, even when the decision engine says no bet", () => {
+    // The default fixture's decision is VETO (no official bet), but every game still gets
+    // a real, priced system pick - the whole point of ALL_MODEL_PREDICTIONS.
     render(<GameCard game={makeGameCard()} />);
-    expect(screen.getByText("Veto")).toBeInTheDocument();
+    expect(screen.getByText("DEN +120")).toBeInTheDocument();
+  });
+
+  it("shows a Best Bet badge only when this pick is also a real published Best Bet", () => {
+    const noBadge = makeGameCard();
+    render(<GameCard game={noBadge} />);
+    expect(screen.queryByText("Best Bet")).not.toBeInTheDocument();
+  });
+
+  it("shows the Best Bet badge when the system pick is also an official published pick", () => {
+    const game = makeGameCard({
+      system_pick: { available: true, selection: "away", selection_team: { team_id: "1400", abbr: "DEN", name: "Denver Broncos", nickname: "Broncos" }, price: 120, market_type: "moneyline", status: "PUBLISHED", settlement: null, is_also_best_bet: true },
+    });
+    render(<GameCard game={game} />);
+    expect(screen.getByText("Best Bet")).toBeInTheDocument();
+  });
+
+  it("shows 'Not available' for the pick when nothing has been published for this game yet", () => {
+    const game = makeGameCard({
+      system_pick: { available: false, selection: null, selection_team: null, price: null, market_type: null, status: null, settlement: null, is_also_best_bet: false },
+    });
+    render(<GameCard game={game} />);
+    const notAvailable = screen.getAllByText("Not available");
+    expect(notAvailable.length).toBeGreaterThan(0);
   });
 });

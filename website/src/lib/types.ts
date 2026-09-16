@@ -59,6 +59,21 @@ export interface DecisionBlock {
   is_published_best_bet: boolean;
 }
 
+// The model's own straight-up pick (PickCategory.ALL_MODEL_PREDICTIONS) - published for
+// EVERY game with real model/market data, entirely separate from `decision` (the Best Bets
+// verdict, which stays "no bet" for most games by design). `available: false` only means
+// nothing has been published for this game yet, never a fabricated pick.
+export interface SystemPickBlock {
+  available: boolean;
+  selection: string | null;
+  selection_team: TeamOut | null;
+  price: number | null;
+  market_type: string | null;
+  status: string | null;
+  settlement: string | null;
+  is_also_best_bet: boolean;
+}
+
 export interface GameCard {
   game_id: string;
   season: number;
@@ -71,6 +86,7 @@ export interface GameCard {
   market: MarketBlock;
   decision: DecisionBlock;
   research: ResearchBlock;
+  system_pick: SystemPickBlock;
 }
 
 export interface SlateResponse {
@@ -109,6 +125,7 @@ export interface GameDetail {
   model: ModelBlock;
   market: MarketBlock;
   model_market_disagreement_points: number | null;
+  system_pick: SystemPickBlock;
   spread_decision: DecisionBlock;
   moneyline_decision: DecisionBlock;
   research: ResearchBlock;

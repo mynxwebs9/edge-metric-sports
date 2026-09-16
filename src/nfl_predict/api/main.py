@@ -37,6 +37,7 @@ from nfl_predict.api.schemas import (
     ScheduleWeeksResponse,
     SlateResponse,
     StreakOut,
+    SystemPickBlock,
     TeamOut,
 )
 from nfl_predict.decision.records import compute_category_record
@@ -132,6 +133,17 @@ def _decision_block(record: dict | None, published_market_types: set[str] = froz
     )
 
 
+def _system_pick_block(pick: dict | None, home_team: TeamOut, away_team: TeamOut, published_market_types: set[str] = frozenset()) -> SystemPickBlock:
+    if pick is None:
+        return SystemPickBlock(available=False)
+    selection_team = home_team if pick["selection"] == "home" else away_team
+    return SystemPickBlock(
+        available=True, selection=pick["selection"], selection_team=selection_team,
+        price=pick["price"], market_type=pick["market_type"], status=pick["status"],
+        settlement=pick.get("settlement"), is_also_best_bet=pick["market_type"] in published_market_types,
+    )
+
+
 def _preview_block(preview: dict | None) -> PreviewBlock:
     if preview is None or not preview.get("available"):
         return PreviewBlock(available=False)
@@ -157,13 +169,16 @@ def _build_slate_for_week(season: int, week: int | None, schedule) -> SlateRespo
         decisions = recon.latest_decisions_for_game(season, g.week, g.game_id)
         research = recon.latest_research_summary(season, g.week, g.game_id)
         published_market_types = recon.published_best_bet_market_types(g.game_id)
+        system_pick = recon.system_pick_for_game(g.game_id)
+        away_team = _team_out(g.away_team_id, teams, g.away_team_abbr)
+        home_team = _team_out(g.home_team_id, teams, g.home_team_abbr)
         cards.append(GameCard(
             game_id=g.game_id, season=g.season, week=g.week,
-            away_team=_team_out(g.away_team_id, teams, g.away_team_abbr),
-            home_team=_team_out(g.home_team_id, teams, g.home_team_abbr),
+            away_team=away_team, home_team=home_team,
             kickoff_timestamp=g.kickoff_timestamp, game_status=g.game_status,
             model=_model_block(model), market=_market_block(market),
             decision=_decision_block(decisions["spread"], published_market_types), research=_research_block(research),
+            system_pick=_system_pick_block(system_pick, home_team, away_team, published_market_types),
         ))
 
     return SlateResponse(season=season, week=week, last_updated=_now_iso(), games=tuple(cards))
@@ -204,6 +219,7 @@ def game_detail(game_id: str) -> GameDetail:
     research = recon.latest_research_summary(season, game.week, game_id)
     preview = recon.latest_preview(season, game.week, game_id)
     published_market_types = recon.published_best_bet_market_types(game_id)
+    system_pick = recon.system_pick_for_game(game_id)
 
     disagreement = None
     if model is not None and model.get("elo_predicted_margin") is not None and market is not None and market.available and market.home_spread_traditional is not None:
@@ -211,13 +227,16 @@ def game_detail(game_id: str) -> GameDetail:
         # comparison of two already-persisted numbers, never a new model output.
         disagreement = model["elo_predicted_margin"] - (-market.home_spread_traditional)
 
+    away_team = _team_out(game.away_team_id, teams, game.away_team_abbr)
+    home_team = _team_out(game.home_team_id, teams, game.home_team_abbr)
+
     return GameDetail(
         game_id=game_id, season=game.season, week=game.week,
-        away_team=_team_out(game.away_team_id, teams, game.away_team_abbr),
-        home_team=_team_out(game.home_team_id, teams, game.home_team_abbr),
+        away_team=away_team, home_team=home_team,
         kickoff_timestamp=game.kickoff_timestamp, game_status=game.game_status,
         model=_model_block(model), market=_market_block(market),
         model_market_disagreement_points=disagreement,
+        system_pick=_system_pick_block(system_pick, home_team, away_team, published_market_types),
         spread_decision=_decision_block(decisions["spread"], published_market_types),
         moneyline_decision=_decision_block(decisions["moneyline"], published_market_types),
         research=_research_block(research),

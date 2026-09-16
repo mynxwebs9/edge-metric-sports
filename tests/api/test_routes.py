@@ -154,6 +154,43 @@ def test_game_detail_renders_real_model_market_research_and_decision_data(api_da
     # -3.2 - (-(-2.5)) = -3.2 - 2.5 = -5.7
     assert body["model_market_disagreement_points"] == -5.7
     assert body["preview"]["available"] is False  # no article generated yet in this test
+    assert body["system_pick"]["available"] is False  # no ALL_MODEL_PREDICTIONS pick published in this test
+
+
+def test_system_pick_shows_the_real_published_all_model_predictions_pick_everywhere(api_data_dir):
+    """system_pick must show up on BOTH the game-detail response and the slate/schedule
+    card for the same game - and it's a completely separate thing from the Best Bets
+    decision status, published for every game with real model/market data regardless of
+    whether that game ever reaches QUALIFIED_BET."""
+    publish_model_prediction(
+        PublicModelPrediction(
+            prediction_id="2026-09-12T08:00:00+00:00", game_id=GAME_ID, season=SEASON, week=WEEK,
+            generated_at="2026-09-12T08:00:00+00:00", elo_home_win_probability=0.39, elo_predicted_margin=-3.2,
+            ridge_predicted_margin=-3.4, lightgbm_predicted_margin=-0.9, model_agreement_all_agree=True,
+            model_agreement_dispersion=2.5, predicted_winner="away",
+        ),
+        PublicationState.PUBLISHED,
+    )
+    publish_pick(PublishedPick(
+        pick_id=f"{GAME_ID}_all_model_predictions", game_id=GAME_ID, published_at="2026-09-12T08:05:00+00:00",
+        kickoff_at="2026-09-14T20:15:00+00:00", decision_id="d1", rule_version="v1",
+        category="ALL_MODEL_PREDICTIONS", market_type="moneyline", selection="away", line=None, price=120,
+        sportsbook_or_source="test", market_snapshot_id="snap1", model_prediction_snapshot={}, research_snapshot_id=None,
+        validation_status="PROSPECTIVE",
+    ))
+
+    detail = client.get(f"/api/nfl/games/{GAME_ID}").json()
+    assert detail["system_pick"]["available"] is True
+    assert detail["system_pick"]["selection"] == "away"
+    assert detail["system_pick"]["selection_team"]["abbr"] == "DEN"
+    assert detail["system_pick"]["price"] == 120
+    assert detail["system_pick"]["market_type"] == "moneyline"
+    assert detail["system_pick"]["status"] == "PUBLISHED"
+
+    slate = client.get("/api/nfl/slate/current").json()
+    card = next(g for g in slate["games"] if g["game_id"] == GAME_ID)
+    assert card["system_pick"]["available"] is True
+    assert card["system_pick"]["selection_team"]["abbr"] == "DEN"
 
 
 def test_only_the_actually_published_market_type_shows_is_published_best_bet(api_data_dir):

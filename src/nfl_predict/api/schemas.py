@@ -82,6 +82,24 @@ class DecisionBlock(BaseModel):
     is_published_best_bet: bool = False
 
 
+class SystemPickBlock(BaseModel):
+    """The model's own straight-up pick for this game (`PickCategory.ALL_MODEL_PREDICTIONS`)
+    - a real, priced, settleable moneyline pick published for EVERY game with real model/
+    market data, entirely independent of whether this game separately qualifies for (and
+    gets published as) an actual Best Bet - see `decision` for that distinct, much narrower
+    status. `available=False` only means nothing has been published for this game yet
+    (e.g. before this week's first real pipeline run), never a fabricated pick."""
+
+    available: bool
+    selection: str | None = None  # "home" | "away"
+    selection_team: TeamOut | None = None
+    price: int | None = None
+    market_type: str | None = None
+    status: str | None = None  # "PUBLISHED" | "SETTLED"
+    settlement: str | None = None  # "WIN" | "LOSS" | "PUSH", or None if not yet settled
+    is_also_best_bet: bool = False  # True when THIS market_type separately has a real, published Best Bet for this game - the two are still two distinct ledger rows, never merged
+
+
 class GameCard(BaseModel):
     """One game as it appears on the current slate / homepage - the spread decision is
     shown as the card's headline System decision; the full matchup page shows both spread
@@ -98,6 +116,7 @@ class GameCard(BaseModel):
     market: MarketBlock
     decision: DecisionBlock
     research: ResearchBlock
+    system_pick: SystemPickBlock
 
 
 class SlateResponse(BaseModel):
@@ -140,6 +159,7 @@ class GameDetail(BaseModel):
     model: ModelBlock
     market: MarketBlock
     model_market_disagreement_points: float | None = None
+    system_pick: SystemPickBlock
     spread_decision: DecisionBlock
     moneyline_decision: DecisionBlock
     research: ResearchBlock

@@ -17,6 +17,7 @@ from nfl_predict.api.reconstruction import (
     latest_model_prediction,
     latest_research_summary,
     market_point_for_decision_record,
+    system_pick_for_game,
 )
 from nfl_predict.decision.decision_log import append_decision_record
 from nfl_predict.decision.pick_ledger import PublishedPick, publish_pick
@@ -210,3 +211,43 @@ def test_current_best_bets_only_returns_published_best_bets_category(api_data_di
     picks = current_best_bets()
     assert len(picks) == 1
     assert picks[0]["pick_id"] == "p1"
+
+
+def test_system_pick_for_game_is_none_when_nothing_published_yet(api_data_dir):
+    assert system_pick_for_game(GAME_ID) is None
+
+
+def test_system_pick_for_game_returns_only_the_all_model_predictions_category(api_data_dir):
+    """A real Best Bet published for the same game must NOT come back as the system_pick -
+    these are two deliberately separate records (see pick_publishing.py)."""
+    publish_pick(PublishedPick(
+        pick_id="best1", game_id=GAME_ID, published_at="2026-09-12T09:00:00+00:00", kickoff_at="2026-09-14T20:15:00",
+        decision_id="b", rule_version="v1", category="BEST_BETS", market_type="spread", selection="home",
+        line=-2.5, price=-110, sportsbook_or_source="consensus", market_snapshot_id=None,
+        model_prediction_snapshot={}, research_snapshot_id=None, validation_status="PROSPECTIVE",
+    ))
+    publish_pick(PublishedPick(
+        pick_id=f"{GAME_ID}_all_model_predictions", game_id=GAME_ID, published_at="2026-09-12T09:00:00+00:00",
+        kickoff_at="2026-09-14T20:15:00", decision_id="c", rule_version="v1", category="ALL_MODEL_PREDICTIONS",
+        market_type="moneyline", selection="away", line=None, price=120, sportsbook_or_source="consensus",
+        market_snapshot_id=None, model_prediction_snapshot={}, research_snapshot_id=None, validation_status="PROSPECTIVE",
+    ))
+
+    pick = system_pick_for_game(GAME_ID)
+    assert pick is not None
+    assert pick["category"] == "ALL_MODEL_PREDICTIONS"
+    assert pick["selection"] == "away"
+
+
+def test_system_pick_for_game_excludes_a_voided_pick(api_data_dir):
+    from nfl_predict.decision.pick_ledger import void_pick
+
+    publish_pick(PublishedPick(
+        pick_id=f"{GAME_ID}_all_model_predictions", game_id=GAME_ID, published_at="2026-09-12T09:00:00+00:00",
+        kickoff_at="2026-09-14T20:15:00", decision_id="c", rule_version="v1", category="ALL_MODEL_PREDICTIONS",
+        market_type="moneyline", selection="away", line=None, price=120, sportsbook_or_source="consensus",
+        market_snapshot_id=None, model_prediction_snapshot={}, research_snapshot_id=None, validation_status="PROSPECTIVE",
+    ))
+    void_pick(f"{GAME_ID}_all_model_predictions", void_reason="DUPLICATE_PUBLICATION", void_timestamp="2026-09-12T10:00:00+00:00", authorized_by="test")
+
+    assert system_pick_for_game(GAME_ID) is None
