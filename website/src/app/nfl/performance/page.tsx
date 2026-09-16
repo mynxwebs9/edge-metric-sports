@@ -4,9 +4,14 @@ import AdSlot from "@/components/AdSlot";
 import { formatProbabilityPct, formatUnits } from "@/lib/format";
 import type { CategoryRecordOut, StreakOut } from "@/lib/types";
 
+const TITLE = "NFL Prediction Model Record";
+const DESCRIPTION = "Our verified, price-aware Best Bets track record - straight from the immutable official pick ledger, never cherry-picked.";
+
 export const metadata: Metadata = {
-  title: "NFL Prediction Model Record",
-  description: "Our verified, price-aware Best Bets track record - straight from the immutable official pick ledger, never cherry-picked.",
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: { title: TITLE, description: DESCRIPTION, url: "https://edgemetricsports.com/nfl/performance", type: "website" },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
 const WINDOW_LABELS: Record<string, string> = {

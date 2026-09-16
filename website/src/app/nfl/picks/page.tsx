@@ -5,9 +5,14 @@ import AdSlot from "@/components/AdSlot";
 import { formatMoneyline, formatTimestamp } from "@/lib/format";
 import { matchupText, selectionLineText } from "@/lib/picks";
 
+const TITLE = "NFL Best Bets";
+const DESCRIPTION = "Our currently qualified NFL picks, derived only from the official prospective pick ledger - never forced.";
+
 export const metadata: Metadata = {
-  title: "NFL Best Bets",
-  description: "Our currently qualified NFL picks, derived only from the official prospective pick ledger - never forced.",
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: { title: TITLE, description: DESCRIPTION, url: "https://edgemetricsports.com/nfl/picks", type: "website" },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
 export default async function PicksPage() {

@@ -15,13 +15,28 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_TITLE = "Edge Metric Sports — NFL Predictions";
+const SITE_DESCRIPTION = "Data-driven NFL predictions, market comparisons, and a verified betting record - free and ad-supported.";
+
 export const metadata: Metadata = {
   metadataBase: new URL("https://edgemetricsports.com"),
   title: {
-    default: "Edge Metric Sports — NFL Predictions",
+    default: SITE_TITLE,
     template: "%s | Edge Metric Sports",
   },
-  description: "Data-driven NFL predictions, market comparisons, and a verified betting record - free and ad-supported.",
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    url: "https://edgemetricsports.com",
+    siteName: "Edge Metric Sports",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -31,10 +31,13 @@ export async function generateMetadata({ params }: PageProps<"/nfl/games/[gameId
   try {
     const game = await getGameDetail(gameId);
     const title = `${game.away_team.name} vs ${game.home_team.name} Prediction`;
+    const description = `Model prediction, market line, and betting decision for ${game.away_team.name} at ${game.home_team.name} - Week ${game.week}.`;
     return {
       title,
-      description: `Model prediction, market line, and betting decision for ${game.away_team.name} at ${game.home_team.name} - Week ${game.week}.`,
+      description,
       alternates: { canonical: `/nfl/games/${gameId}` },
+      openGraph: { title, description, url: `https://edgemetricsports.com/nfl/games/${gameId}`, type: "website" },
+      twitter: { card: "summary_large_image", title, description },
     };
   } catch {
     return { title: "NFL Game Prediction" };
