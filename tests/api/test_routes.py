@@ -193,6 +193,31 @@ def test_system_pick_shows_the_real_published_all_model_predictions_pick_everywh
     assert card["system_pick"]["selection_team"]["abbr"] == "DEN"
 
 
+def test_game_card_headline_decision_matches_the_moneyline_not_the_spread(api_data_dir):
+    """Real bug caught by a screenshot: a game card showed a "No Bet" headline badge right
+    next to a "Best Bet" pill for the same game. `system_pick` (what the pill is about) is
+    always a moneyline pick - the card's headline decision must track moneyline too, or the
+    two can legitimately disagree (spread NO_BET, moneyline QUALIFIED_BET) and look
+    self-contradictory."""
+    append_decision_record(DecisionRecord(
+        decision_id="d_spread", game_id=GAME_ID, decision_timestamp="2026-09-12T09:30:00+00:00",
+        kickoff_timestamp="2026-09-14T20:15:00", decision=Decision.NO_BET,
+        reason_codes=(ReasonCode.DISAGREEMENT_BELOW_MINIMUM,), decision_rule_version="v1",
+        market_type="spread", input_packet_hash="h1", validation_status="PROSPECTIVE",
+    ), SEASON, WEEK)
+    append_decision_record(DecisionRecord(
+        decision_id="d_ml", game_id=GAME_ID, decision_timestamp="2026-09-12T09:30:00+00:00",
+        kickoff_timestamp="2026-09-14T20:15:00", decision=Decision.QUALIFIED_BET,
+        reason_codes=(ReasonCode.MODEL_MARKET_DISAGREEMENT,), decision_rule_version="v1",
+        market_type="moneyline", input_packet_hash="h2", validation_status="PROSPECTIVE",
+    ), SEASON, WEEK)
+
+    slate = client.get("/api/nfl/slate/current").json()
+    card = next(g for g in slate["games"] if g["game_id"] == GAME_ID)
+    assert card["decision"]["market_type"] == "moneyline"
+    assert card["decision"]["decision"] == "QUALIFIED_BET"
+
+
 def test_only_the_actually_published_market_type_shows_is_published_best_bet(api_data_dir):
     """Regression test for a real screenshot-caught bug: when BOTH spread and moneyline
     reach QUALIFIED_BET but only ONE is actually published (the project's one-pick-per-game

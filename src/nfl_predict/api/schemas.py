@@ -101,9 +101,10 @@ class SystemPickBlock(BaseModel):
 
 
 class GameCard(BaseModel):
-    """One game as it appears on the current slate / homepage - the spread decision is
-    shown as the card's headline System decision; the full matchup page shows both spread
-    and moneyline explicitly (see GameDetail)."""
+    """One game as it appears on the current slate / homepage - the moneyline decision is
+    shown as the card's headline System decision, matching `system_pick` (always a
+    moneyline pick) so the two never visually disagree; the full matchup page shows both
+    spread and moneyline explicitly (see GameDetail)."""
 
     game_id: str
     season: int

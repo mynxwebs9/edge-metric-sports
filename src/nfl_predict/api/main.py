@@ -177,7 +177,7 @@ def _build_slate_for_week(season: int, week: int | None, schedule) -> SlateRespo
             away_team=away_team, home_team=home_team,
             kickoff_timestamp=g.kickoff_timestamp, game_status=g.game_status,
             model=_model_block(model), market=_market_block(market),
-            decision=_decision_block(decisions["spread"], published_market_types), research=_research_block(research),
+            decision=_decision_block(decisions["moneyline"], published_market_types), research=_research_block(research),
             system_pick=_system_pick_block(system_pick, home_team, away_team, published_market_types),
         ))
 
