@@ -41,6 +41,19 @@ logger = get_logger(__name__)
 MATCHUP_RESEARCH_PROMPT_VERSION = "matchup_research_v2"
 RESEARCH_EVALUATOR_PROMPT_VERSION = "research_evaluator_v1"
 
+# Real production data (16-game run, 2026-09-16): 9 of 16 real, billed research calls failed
+# outright with zero retry - a mix of network-level failures ("The read operation timed out",
+# no retry logic existed at all) and INVALID_JSON parse failures (the model occasionally
+# violates the non-strict tool schema on deeply nested array fields - Anthropic's own
+# strict-mode grammar compiler rejects this schema as too large, so there is no hard
+# structural guarantee, only prompt/description-level guidance). Both failure modes are
+# observed to be substantially stochastic - a repeat call with the identical prompt often
+# succeeds where the first one didn't (the same pattern already seen and fixed this way for
+# nfl_predict.content.prediction_writer). Retrying costs real money on the attempts that
+# happen, which is why this is bounded, not unbounded, and every attempt's real usage is
+# recorded via `tracker` regardless of whether it succeeds.
+MAX_RESEARCH_ATTEMPTS = 2
+
 _PLACEHOLDER_RE = re.compile(r"\{\{(\w+)\}\}")
 
 
@@ -89,53 +102,65 @@ def run_research_for_game(
     prompt = build_prompt_from_template(research_prompt_template_text, packet)
     input_hash = packet.content_hash()
 
-    try:
-        call_result = provider.run_research(prompt, prompt_version=MATCHUP_RESEARCH_PROMPT_VERSION)
-    except ResearchCostBudgetExceededError as e:
-        # A real, computed pre-flight refusal (Phase 8A cost-controls correction) - no HTTP
-        # call was made, so this is an "explicit high-uncertainty status," never a silent
-        # skip and never conflated with a genuine LLM/network failure.
-        failure = FailedResearchRun(
-            research_id=research_id, game_id=packet.game_id, research_timestamp=now_iso,
-            prompt_version=MATCHUP_RESEARCH_PROMPT_VERSION, model_provider="unknown", model_name="unknown",
-            input_packet_hash=input_hash, failure_status=FailureStatus.COST_BUDGET_EXCEEDED, failure_detail=str(e),
-        )
-        run_dir = write_research_run(packet.season, packet.week, packet.game_id, run_id, packet, failure, "failed_run")
-        logger.warning("Research run refused (COST_BUDGET_EXCEEDED) for %s: %s", packet.game_id, e)
-        return {"status": "failed", "failure_status": failure.failure_status.value, "run_dir": str(run_dir), "cost": tracker.summary()}
-    except Exception as e:
-        failure = FailedResearchRun(
-            research_id=research_id, game_id=packet.game_id, research_timestamp=now_iso,
-            prompt_version=MATCHUP_RESEARCH_PROMPT_VERSION, model_provider="unknown", model_name="unknown",
-            input_packet_hash=input_hash, failure_status=FailureStatus.LLM_FAILURE, failure_detail=str(e),
-        )
-        run_dir = write_research_run(packet.season, packet.week, packet.game_id, run_id, packet, failure, "failed_run")
-        logger.warning("Research run failed (LLM_FAILURE) for %s: %s", packet.game_id, e)
-        return {"status": "failed", "failure_status": failure.failure_status.value, "run_dir": str(run_dir), "cost": tracker.summary()}
+    findings = None
+    call_result = None
+    last_failure_status: FailureStatus | None = None
+    last_failure_detail = ""
+    last_model_provider, last_model_name = "unknown", "unknown"
 
-    tracker.record_llm_call(
-        call_result.input_tokens, call_result.output_tokens, call_result.estimated_cost_usd,
-        cache_creation_input_tokens=call_result.cache_creation_input_tokens,
-        cache_read_input_tokens=call_result.cache_read_input_tokens,
-        web_search_requests=call_result.web_search_requests,
-    )
+    for attempt in range(1, MAX_RESEARCH_ATTEMPTS + 1):
+        try:
+            call_result = provider.run_research(prompt, prompt_version=MATCHUP_RESEARCH_PROMPT_VERSION)
+        except ResearchCostBudgetExceededError as e:
+            # A real, computed pre-flight refusal (Phase 8A cost-controls correction) - no
+            # HTTP call was made, and it's a deterministic check against the same packet/
+            # config every time, so retrying would just fail identically. Never retried.
+            failure = FailedResearchRun(
+                research_id=research_id, game_id=packet.game_id, research_timestamp=now_iso,
+                prompt_version=MATCHUP_RESEARCH_PROMPT_VERSION, model_provider="unknown", model_name="unknown",
+                input_packet_hash=input_hash, failure_status=FailureStatus.COST_BUDGET_EXCEEDED, failure_detail=str(e),
+            )
+            run_dir = write_research_run(packet.season, packet.week, packet.game_id, run_id, packet, failure, "failed_run")
+            logger.warning("Research run refused (COST_BUDGET_EXCEEDED) for %s: %s", packet.game_id, e)
+            return {"status": "failed", "failure_status": failure.failure_status.value, "run_dir": str(run_dir), "cost": tracker.summary()}
+        except Exception as e:
+            last_failure_status, last_failure_detail = FailureStatus.LLM_FAILURE, str(e)
+            logger.warning("Research call attempt %d/%d failed (LLM_FAILURE) for %s: %s", attempt, MAX_RESEARCH_ATTEMPTS, packet.game_id, e)
+            continue
 
-    try:
-        findings = parse_research_output(
-            call_result.raw_output_text, research_id=research_id, game_id=packet.game_id,
-            research_timestamp=now_iso, prompt_version=MATCHUP_RESEARCH_PROMPT_VERSION,
-            model_provider=call_result.provider_name, model_name=call_result.model_name, input_packet_hash=input_hash,
+        tracker.record_llm_call(
+            call_result.input_tokens, call_result.output_tokens, call_result.estimated_cost_usd,
+            cache_creation_input_tokens=call_result.cache_creation_input_tokens,
+            cache_read_input_tokens=call_result.cache_read_input_tokens,
+            web_search_requests=call_result.web_search_requests,
         )
-    except ResearchOutputParseError as e:
+        last_model_provider, last_model_name = call_result.provider_name, call_result.model_name
+
+        try:
+            findings = parse_research_output(
+                call_result.raw_output_text, research_id=research_id, game_id=packet.game_id,
+                research_timestamp=now_iso, prompt_version=MATCHUP_RESEARCH_PROMPT_VERSION,
+                model_provider=call_result.provider_name, model_name=call_result.model_name, input_packet_hash=input_hash,
+            )
+            break  # a real, successfully-parsed call - stop retrying
+        except ResearchOutputParseError as e:
+            last_failure_status, last_failure_detail = FailureStatus.INVALID_JSON, str(e)
+            logger.warning("Research call attempt %d/%d failed (INVALID_JSON) for %s: %s", attempt, MAX_RESEARCH_ATTEMPTS, packet.game_id, e)
+            continue
+
+    if findings is None:
+        # Every attempt failed - tracker still holds the real, non-zero cost of whichever
+        # attempts actually reached a billed LLM call, per this module's existing
+        # "never silently report zero calls made" discipline.
         failure = FailedResearchRun(
             research_id=research_id, game_id=packet.game_id, research_timestamp=now_iso,
-            prompt_version=MATCHUP_RESEARCH_PROMPT_VERSION, model_provider=call_result.provider_name,
-            model_name=call_result.model_name, input_packet_hash=input_hash,
-            failure_status=FailureStatus.INVALID_JSON, failure_detail=str(e),
+            prompt_version=MATCHUP_RESEARCH_PROMPT_VERSION, model_provider=last_model_provider,
+            model_name=last_model_name, input_packet_hash=input_hash,
+            failure_status=last_failure_status, failure_detail=f"failed after {MAX_RESEARCH_ATTEMPTS} attempt(s), most recent: {last_failure_detail}",
         )
         run_dir = write_research_run(packet.season, packet.week, packet.game_id, run_id, packet, failure, "failed_run")
-        logger.warning("Research run failed (INVALID_JSON) for %s: %s", packet.game_id, e)
-        return {"status": "failed", "failure_status": failure.failure_status.value, "run_dir": str(run_dir), "cost": tracker.summary()}
+        logger.warning("Research run failed (%s) for %s after %d attempt(s): %s", last_failure_status.value, packet.game_id, MAX_RESEARCH_ATTEMPTS, last_failure_detail)
+        return {"status": "failed", "failure_status": last_failure_status.value, "run_dir": str(run_dir), "cost": tracker.summary()}
 
     # A real LLM call was made and its output parsed successfully at this point - the money
     # is spent and `tracker` already holds the real usage regardless of what happens next.

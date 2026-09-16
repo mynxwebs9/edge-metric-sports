@@ -338,7 +338,11 @@ class AnthropicMessagesProvider(LLMResearchProvider):
         body = json.dumps(request["json"]).encode("utf-8")
         req = urllib.request.Request(request["url"], data=body, headers=request["headers"], method="POST")
         try:
-            with urllib.request.urlopen(req, timeout=120) as resp:  # pragma: no cover - never exercised without a live key
+            # 180s, not 120s: a real production run showed "The read operation timed out" on
+            # 3 of 16 calls - each research call is up to MAX_PAUSE_TURN_CONTINUATIONS + 1
+            # chained round-trips (real web searches + pause_turn continuations), any one of
+            # which can legitimately run long, and 120s was tight for that shape of workload.
+            with urllib.request.urlopen(req, timeout=180) as resp:  # pragma: no cover - never exercised without a live key
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:  # pragma: no cover - never exercised without a live key
             detail = e.read().decode("utf-8", errors="replace")[:1000]

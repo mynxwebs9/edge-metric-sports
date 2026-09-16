@@ -142,6 +142,56 @@ class _RealUsageThenMalformedOutputProvider(LLMResearchProvider):
         raise NotImplementedError
 
 
+class _FailsOnceThenSucceedsProvider(LLMResearchProvider):
+    """Real production pattern (confirmed on a real DEN@KC re-run): the same prompt that
+    failed schema compliance on one call succeeded cleanly on a fresh retry. Fails with a
+    real network-style error on the first call, then returns real, valid, well-formed
+    findings on the second - proving MAX_RESEARCH_ATTEMPTS actually recovers from a
+    transient failure instead of just giving up after one try."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def run_research(self, prompt, prompt_version):
+        self.calls += 1
+        if self.calls == 1:
+            raise TimeoutError("The read operation timed out")
+        payload = {
+            "material_facts": [], "uncertain_reports": [], "external_model_opinions": [], "analyst_opinions": [],
+            "qb_status": "No change.", "ol_status": "No change.", "skill_position_status": "No change.",
+            "defensive_personnel_status": "No change.", "weather_status": "Not checked.", "coaching_status": "No change.",
+            "missing_information": [], "research_classification": "NO_MATERIAL_NEW_INFORMATION",
+        }
+        return LLMCallResult(
+            provider_name="anthropic", model_name="claude-sonnet-5", raw_output_text=json.dumps(payload),
+            input_tokens=1000, output_tokens=200, estimated_cost_usd=0.05,
+            cache_creation_input_tokens=0, cache_read_input_tokens=0, web_search_requests=1,
+        )
+
+    def run_evaluation(self, prompt, prompt_version):
+        raise NotImplementedError
+
+
+def test_a_transient_failure_on_the_first_attempt_is_recovered_by_a_retry(tmp_path, monkeypatch):
+    monkeypatch.setattr("nfl_predict.storage.blob_store.get_settings", lambda: type("S", (), {"data_dir": tmp_path, "storage_backend": "sqlite", "database_url": None})())
+    monkeypatch.setattr("nfl_predict.research.prospective_ledger.get_settings", lambda: type("S", (), {"data_dir": tmp_path, "storage_backend": "sqlite", "database_url": None})())
+
+    provider = _FailsOnceThenSucceedsProvider()
+    result = run_research_for_game(
+        packet=_packet(), provider=provider, research_prompt_template_text="x",
+        run_id="test_run_retry_recovery", now="2026-09-18T10:05:00+00:00",
+    )
+
+    assert provider.calls == 2  # the first, failed attempt really happened - not skipped
+    assert result["status"] == "ok"
+    assert result["classification"] == "NO_MATERIAL_NEW_INFORMATION"
+    # Real cost from BOTH attempts (the failed one made no billable call - a raised
+    # exception before any usage was returned - so only the successful attempt's real usage
+    # is recorded here, which is correct: nothing to record for a call that never returned).
+    assert result["cost"]["total_llm_calls"] == 1
+    assert result["cost"]["total_estimated_cost_usd"] == pytest.approx(0.05)
+
+
 def test_a_real_call_that_fails_to_parse_downstream_still_reports_as_attempted_with_real_usage(tmp_path, monkeypatch):
     monkeypatch.setattr("nfl_predict.storage.blob_store.get_settings", lambda: type("S", (), {"data_dir": tmp_path, "storage_backend": "sqlite", "database_url": None})())
     monkeypatch.setattr("nfl_predict.research.prospective_ledger.get_settings", lambda: type("S", (), {"data_dir": tmp_path, "storage_backend": "sqlite", "database_url": None})())
@@ -153,13 +203,15 @@ def test_a_real_call_that_fails_to_parse_downstream_still_reports_as_attempted_w
 
     assert result["status"] == "failed"
     assert result["failure_status"] == "INVALID_JSON"
-    # The real usage/cost already incurred by the real Anthropic call must survive the
-    # downstream parse failure - never silently dropped/reported as zero.
-    assert result["cost"]["total_llm_calls"] == 1
-    assert result["cost"]["total_web_search_requests"] == 3
-    assert result["cost"]["total_input_tokens"] == 69942
-    assert result["cost"]["total_output_tokens"] == 7586
-    assert result["cost"]["total_estimated_cost_usd"] == pytest.approx(0.245744)
+    # The real usage/cost already incurred by the real Anthropic call(s) must survive the
+    # downstream parse failure - never silently dropped/reported as zero. This provider fails
+    # identically every call, so with the retry logic (MAX_RESEARCH_ATTEMPTS=2) both attempts
+    # are real, billed calls - the total must reflect both, not just the first.
+    assert result["cost"]["total_llm_calls"] == 2
+    assert result["cost"]["total_web_search_requests"] == 6
+    assert result["cost"]["total_input_tokens"] == 69942 * 2
+    assert result["cost"]["total_output_tokens"] == 7586 * 2
+    assert result["cost"]["total_estimated_cost_usd"] == pytest.approx(0.245744 * 2)
 
 
 class _ValidOutputProvider(LLMResearchProvider):
