@@ -2,6 +2,14 @@ import Link from "next/link";
 import type { GameCard as GameCardType } from "@/lib/types";
 import { formatKickoff, formatMoneyline, formatProbabilityPct, formatSpread } from "@/lib/format";
 
+const DECISION_DOT_STYLES: Record<string, string> = {
+  QUALIFIED_BET: "bg-qualified/15 text-qualified",
+  LEAN: "bg-lean/15 text-lean",
+  WATCH: "bg-watch/15 text-watch",
+  VETO: "bg-veto/15 text-veto",
+  NO_BET: "bg-no-bet/15 text-no-bet",
+};
+
 function projectedMarginText(game: GameCardType): string | null {
   const margin = game.model.elo_predicted_margin;
   if (margin === null) return null;
@@ -22,8 +30,19 @@ export default function GameCard({ game }: { game: GameCardType }) {
     <div className="flex flex-col rounded-xl border border-border bg-surface p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
       <div className="mb-3 flex items-center justify-between">
         <span className="font-mono text-xs font-medium uppercase tracking-wide text-muted">{formatKickoff(game.kickoff_timestamp)}</span>
-        {game.game_status === "final" && (
+        {game.game_status === "final" ? (
           <span className="rounded bg-surface-muted px-2 py-0.5 text-xs font-semibold text-muted">Final</span>
+        ) : (
+          game.decision.available && game.decision.decision && (
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                DECISION_DOT_STYLES[game.decision.decision] ?? "bg-surface-muted text-muted"
+              }`}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-current" />
+              {game.decision.decision_label}
+            </span>
+          )
         )}
       </div>
 

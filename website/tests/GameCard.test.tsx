@@ -66,4 +66,24 @@ describe("GameCard", () => {
     const notAvailable = screen.getAllByText("Not available");
     expect(notAvailable.length).toBeGreaterThan(0);
   });
+
+  it("shows a small decision status badge for the card's headline (spread) decision", () => {
+    render(<GameCard game={makeGameCard()} />);
+    expect(screen.getByText("Veto")).toBeInTheDocument();
+  });
+
+  it("hides the decision status badge once the game is final", () => {
+    const game = makeGameCard({ game_status: "final" });
+    render(<GameCard game={game} />);
+    expect(screen.queryByText("Veto")).not.toBeInTheDocument();
+    expect(screen.getByText("Final")).toBeInTheDocument();
+  });
+
+  it("hides the decision status badge when no decision is available yet", () => {
+    const game = makeGameCard({
+      decision: { available: false, market_type: null, decision: null, decision_label: null, reason_codes: [], decision_timestamp: null, is_published_best_bet: false },
+    });
+    render(<GameCard game={game} />);
+    expect(screen.queryByText("Veto")).not.toBeInTheDocument();
+  });
 });
