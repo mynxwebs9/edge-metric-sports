@@ -25,6 +25,8 @@ from nfl_predict.api.schemas import (
     DecisionsResponse,
     GameCard,
     GameDetail,
+    GameIdOut,
+    GameIdsResponse,
     HealthResponse,
     MarketBlock,
     ModelBlock,
@@ -195,6 +197,13 @@ def schedule_weeks() -> ScheduleWeeksResponse:
     season, schedule = recon.current_season_and_schedule()
     weeks = sorted({g.week for g in schedule.games})
     return ScheduleWeeksResponse(season=season, weeks=tuple(weeks), current_week=schedule.current_week)
+
+
+@app.get("/api/nfl/game-ids", response_model=GameIdsResponse)
+def game_ids() -> GameIdsResponse:
+    season, schedule = recon.current_season_and_schedule()
+    ids = tuple(GameIdOut(game_id=g.game_id, week=g.week) for g in schedule.games)
+    return GameIdsResponse(season=season, game_ids=ids)
 
 
 @app.get("/api/nfl/schedule/{week}", response_model=SlateResponse)

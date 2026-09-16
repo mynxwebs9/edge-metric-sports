@@ -193,6 +193,21 @@ def test_system_pick_shows_the_real_published_all_model_predictions_pick_everywh
     assert card["system_pick"]["selection_team"]["abbr"] == "DEN"
 
 
+def test_game_ids_endpoint_lists_every_real_scheduled_game_cheaply(api_data_dir):
+    """Built for the website's sitemap - must return every real game_id across the whole
+    season without doing any of the heavy per-game model/market/research/decision
+    reconstruction `/api/nfl/schedule/{week}` does (that's what made sitemap generation slow
+    enough to time out in production)."""
+    resp = client.get("/api/nfl/game-ids")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["season"] == SEASON
+    ids = [g["game_id"] for g in body["game_ids"]]
+    assert GAME_ID in ids
+    entry = next(g for g in body["game_ids"] if g["game_id"] == GAME_ID)
+    assert entry["week"] == WEEK
+
+
 def test_game_card_headline_decision_matches_the_moneyline_not_the_spread(api_data_dir):
     """Real bug caught by a screenshot: a game card showed a "No Bet" headline badge right
     next to a "Best Bet" pill for the same game. `system_pick` (what the pill is about) is

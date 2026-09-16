@@ -135,6 +135,21 @@ class ScheduleWeeksResponse(BaseModel):
     current_week: int | None
 
 
+class GameIdOut(BaseModel):
+    game_id: str
+    week: int
+
+
+class GameIdsResponse(BaseModel):
+    """Deliberately cheap: only `schedule.games`'s own fields (already fetched by a single
+    `get_schedule()` call) - no per-game model/market/research/decision reconstruction. Built
+    for the website's sitemap, which needs every real game's URL but none of its data."""
+
+    schema_version: str = API_SCHEMA_VERSION
+    season: int
+    game_ids: tuple[GameIdOut, ...]
+
+
 class PreviewBlock(BaseModel):
     """The offline-generated "why" article for a game - see
     `nfl_predict.content.prediction_writer`. Never generated at request time; `available`

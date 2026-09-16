@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { getScheduleForWeek, getScheduleWeeks } from "@/lib/api";
+import { getAllGameIds } from "@/lib/api";
 
 const BASE_URL = "https://www.edgemetricsports.com";
 
@@ -15,15 +15,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   let gameRoutes: MetadataRoute.Sitemap = [];
   try {
-    const { weeks } = await getScheduleWeeks();
-    const slates = await Promise.all(weeks.map((week) => getScheduleForWeek(week)));
-    gameRoutes = slates.flatMap((slate) =>
-      slate.games.map((game) => ({
-        url: `${BASE_URL}/nfl/games/${game.game_id}`,
-        changeFrequency: "daily" as const,
-        priority: 0.6,
-      })),
-    );
+    const { game_ids } = await getAllGameIds();
+    gameRoutes = game_ids.map((game) => ({
+      url: `${BASE_URL}/nfl/games/${game.game_id}`,
+      changeFrequency: "daily" as const,
+      priority: 0.6,
+    }));
   } catch {
     // The real backend is unreachable at build time - ship the static routes rather than
     // failing the whole sitemap (and the build) over pages Google can still find via links.

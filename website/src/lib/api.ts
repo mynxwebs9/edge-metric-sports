@@ -9,6 +9,7 @@ import type {
   BestBetsResponse,
   DecisionsResponse,
   GameDetail,
+  GameIdsResponse,
   ModelStatusResponse,
   PerformanceResponse,
   ScheduleWeeksResponse,
@@ -65,4 +66,12 @@ export function getScheduleWeeks(): Promise<ScheduleWeeksResponse> {
 
 export function getScheduleForWeek(week: number): Promise<SlateResponse> {
   return getJson<SlateResponse>(`/api/nfl/schedule/${week}`, 30);
+}
+
+// Deliberately cheap - just real game_ids for the whole season, none of the per-game
+// model/market/research/decision data `getScheduleForWeek` fetches. Built for the sitemap,
+// which needs every game's URL but not its data - fetching all of that per week was slow
+// enough to time out sitemap generation in production.
+export function getAllGameIds(): Promise<GameIdsResponse> {
+  return getJson<GameIdsResponse>("/api/nfl/game-ids", 300);
 }

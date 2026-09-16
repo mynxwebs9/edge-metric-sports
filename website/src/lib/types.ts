@@ -104,6 +104,17 @@ export interface ScheduleWeeksResponse {
   current_week: number | null;
 }
 
+export interface GameIdOut {
+  game_id: string;
+  week: number;
+}
+
+export interface GameIdsResponse {
+  schema_version: string;
+  season: number;
+  game_ids: GameIdOut[];
+}
+
 export interface PreviewBlock {
   available: boolean;
   text: string | null;
