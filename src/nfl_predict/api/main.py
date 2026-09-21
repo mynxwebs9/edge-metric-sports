@@ -32,6 +32,8 @@ from nfl_predict.api.schemas import (
     MarketBlock,
     ModelBlock,
     ModelStatusResponse,
+    ParlayLegOut,
+    ParlayOut,
     PerformanceResponse,
     PickOut,
     PreviewBlock,
@@ -276,7 +278,24 @@ def _pick_out(p: dict, games_by_id: dict, teams: dict) -> PickOut:
         kickoff_at=p["kickoff_at"], market_type=p["market_type"], selection=p["selection"],
         selection_team=selection_team, home_team=home_team, away_team=away_team,
         line=p["line"], price=p["price"], sportsbook_or_source=p["sportsbook_or_source"], status=p["status"],
-        settlement=p.get("settlement"), note=p.get("note"),
+        settlement=p.get("settlement"), note=p.get("note"), void_reason=p.get("void_reason"),
+    )
+
+
+def _parlay_out(p: dict) -> ParlayOut:
+    leg_results = p.get("leg_results") or []
+    legs = tuple(
+        ParlayLegOut(
+            description=leg["description"], matchup=leg["matchup"], price=leg.get("price"),
+            result=leg_results[i]["result"] if i < len(leg_results) else None,
+            detail=leg_results[i]["detail"] if i < len(leg_results) else None,
+        )
+        for i, leg in enumerate(p["legs"])
+    )
+    return ParlayOut(
+        pick_id=p["pick_id"], published_at=p["published_at"], kickoff_at=p["kickoff_at"], price=p["price"],
+        status=p["status"], settlement=p.get("settlement"), note=p.get("note"),
+        sportsbook_or_source=p["sportsbook_or_source"], void_reason=p.get("void_reason"), legs=legs,
     )
 
 
@@ -288,32 +307,45 @@ def _streak_outs(windows: dict) -> tuple[StreakOut, ...]:
     )
 
 
-@app.get("/api/nfl/expert-picks", response_model=ExpertPicksResponse)
-def expert_picks() -> ExpertPicksResponse:
-    from nfl_predict.decision.pick_ledger import read_current_picks
-
-    picks = read_current_picks()
-    expert = [p for p in picks if p["category"] == "EXPERT_PICKS" and p["status"] != "VOID"]
-
-    season, schedule = recon.current_season_and_schedule()
-    games_by_id = {g.game_id: g for g in schedule.games}
-    teams = recon.team_lookup()
-
-    open_picks = sorted((p for p in expert if p["status"] == "PUBLISHED"), key=lambda p: p["kickoff_at"] or "")
-    settled_picks = sorted((p for p in expert if p["status"] == "SETTLED"), key=lambda p: p["settled_at"], reverse=True)[:100]
-    return ExpertPicksResponse(
-        record=_category_record_out(picks, "EXPERT_PICKS"),
-        streaks=_streak_outs(compute_all_predefined_windows(picks, "EXPERT_PICKS", season=season)),
-        open_picks=tuple(_pick_out(p, games_by_id, teams) for p in open_picks),
-        settled_picks=tuple(_pick_out(p, games_by_id, teams) for p in settled_picks),
-    )
-
-
 def _category_record_out(picks: list[dict], category: str) -> CategoryRecordOut:
     r = compute_category_record(picks, category)
     return CategoryRecordOut(
         category=r.category, n_settled=r.n_settled, wins=r.wins, losses=r.losses, pushes=r.pushes,
         win_rate=r.win_rate, total_units=r.total_units, roi_per_bet=r.roi_per_bet, average_price=r.average_price,
+    )
+
+
+@app.get("/api/nfl/expert-picks", response_model=ExpertPicksResponse)
+def expert_picks() -> ExpertPicksResponse:
+    from nfl_predict.decision.pick_ledger import read_current_picks
+
+    picks = read_current_picks()
+    singles = [p for p in picks if p["category"] == "EXPERT_PICKS"]
+    parlays = [p for p in picks if p["category"] == "EXPERT_PARLAYS"]
+
+    season, schedule = recon.current_season_and_schedule()
+    games_by_id = {g.game_id: g for g in schedule.games}
+    teams = recon.team_lookup()
+
+    def by_status(items: list[dict], status: str) -> list[dict]:
+        return [p for p in items if p["status"] == status]
+
+    def soonest_kickoff(items: list[dict]) -> list[dict]:
+        return sorted(items, key=lambda p: p["kickoff_at"] or "")
+
+    def newest_settled(items: list[dict]) -> list[dict]:
+        return sorted(items, key=lambda p: p["settled_at"], reverse=True)[:100]
+
+    return ExpertPicksResponse(
+        record=_category_record_out(picks, "EXPERT_PICKS"),
+        parlay_record=_category_record_out(picks, "EXPERT_PARLAYS"),
+        streaks=_streak_outs(compute_all_predefined_windows(picks, "EXPERT_PICKS", season=season)),
+        open_picks=tuple(_pick_out(p, games_by_id, teams) for p in soonest_kickoff(by_status(singles, "PUBLISHED"))),
+        settled_picks=tuple(_pick_out(p, games_by_id, teams) for p in newest_settled(by_status(singles, "SETTLED"))),
+        open_parlays=tuple(_parlay_out(p) for p in soonest_kickoff(by_status(parlays, "PUBLISHED"))),
+        settled_parlays=tuple(_parlay_out(p) for p in newest_settled(by_status(parlays, "SETTLED"))),
+        voided_picks=tuple(_pick_out(p, games_by_id, teams) for p in by_status(singles, "VOID")),
+        voided_parlays=tuple(_parlay_out(p) for p in by_status(parlays, "VOID")),
     )
 
 

@@ -49,8 +49,25 @@ export function getBestBets(): Promise<BestBetsResponse> {
   return getJson<BestBetsResponse>("/api/nfl/best-bets", 30);
 }
 
-export function getExpertPicks(): Promise<ExpertPicksResponse> {
-  return getJson<ExpertPicksResponse>("/api/nfl/expert-picks", 30);
+// The frontend (Vercel) and the API (Render) deploy independently on every push, so for a few
+// minutes the new page can be served the previous API shape. Fields added after the first
+// version of this endpoint default to their honest empty value instead of crashing the page.
+export async function getExpertPicks(): Promise<ExpertPicksResponse> {
+  const data = await getJson<Partial<ExpertPicksResponse> & Pick<ExpertPicksResponse, "record" | "streaks" | "open_picks" | "settled_picks">>(
+    "/api/nfl/expert-picks",
+    30,
+  );
+  return {
+    schema_version: "1",
+    ...data,
+    parlay_record: data.parlay_record ?? {
+      category: "EXPERT_PARLAYS", n_settled: 0, wins: 0, losses: 0, pushes: 0, win_rate: null, total_units: null, roi_per_bet: null, average_price: null,
+    },
+    open_parlays: data.open_parlays ?? [],
+    settled_parlays: data.settled_parlays ?? [],
+    voided_picks: data.voided_picks ?? [],
+    voided_parlays: data.voided_parlays ?? [],
+  };
 }
 
 export function getPerformance(): Promise<PerformanceResponse> {

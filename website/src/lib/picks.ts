@@ -16,3 +16,14 @@ export function matchupText(pick: PickOut): string {
   if (!pick.home_team || !pick.away_team) return pick.game_id;
   return `${pick.away_team.abbr} @ ${pick.home_team.abbr}`;
 }
+
+const VOID_REASON_LABELS: Record<string, string> = {
+  CORRUPTED_INPUT_DETECTED_PRE_EVENT: "Entered in error and corrected before kickoff",
+  DUPLICATE_PUBLICATION: "Duplicate entry",
+  GAME_CANCELLED: "Game cancelled",
+  SPORTSBOOK_MARKET_VOIDED: "Sportsbook voided the market",
+};
+
+export function voidReasonLabel(reason: string | null): string {
+  return (reason && VOID_REASON_LABELS[reason]) || "Voided before kickoff";
+}

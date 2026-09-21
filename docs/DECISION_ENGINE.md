@@ -84,6 +84,20 @@ own pre-declared (outcome-blind) bucket boundaries or to general operational rea
   code enforces what makes such a record credible: `published_at` is always the real time
   of publication (never caller-supplied), a pick is refused once its game has kicked off or
   isn't `scheduled`, and there is one immutable pick per game per market.
+- **`EXPERT_PARLAYS`**: a human's multi-leg parlay (`python -m nfl_predict.decision.expert_parlays`),
+  its own record, never blended with `EXPERT_PICKS` or the model's categories. Legs may be a
+  moneyline, a spread, or a player prop (a whitelisted countable stat over/under a line); each
+  leg's game must be pre-kickoff and legs are frozen into the ledger at publish time. The
+  record's units use the parlay's own American price as the sportsbook offered it (a
+  same-game parlay is not simply the legs multiplied). Grading (`parlay_settlement.py`): a
+  parlay loses the moment any leg loses, wins only if every leg wins, stays pending until
+  every needed box score is in the ingested `player_stats` snapshot (a stale snapshot never
+  grades a leg), and anything ambiguous - a pushed leg, or a player with no stat row - is
+  surfaced as `needs_review` and left unsettled, never guessed. Settling needs
+  `python -m nfl_predict.data.ingest --dataset player_stats --seasons <season>` alongside the
+  schedules ingest.
+- **Voiding**: a pick voided before kickoff (only the ledger's restricted reasons) is never
+  hidden - the Expert Picks page lists it with the reason, and it counts in no record.
 - **Settlement**: deterministic, spread and moneyline only (no totals).
 - **Streak/headline engine**: predefined windows only
   (`last_5/10/20/30`/`season_to_date`/`current_streak`) — no arbitrary date ranges.

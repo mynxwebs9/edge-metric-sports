@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import { getExpertPicks } from "@/lib/api";
 import AdSlot from "@/components/AdSlot";
+import ParlayCard from "@/components/ParlayCard";
 import PickListItem from "@/components/PickListItem";
 import RecordCard from "@/components/RecordCard";
 import WindowsCard from "@/components/WindowsCard";
+import { formatMoneyline } from "@/lib/format";
+import { matchupText, selectionLineText, voidReasonLabel } from "@/lib/picks";
 
 const TITLE = "NFL Expert Picks";
 const EXPERT_NAME = "Mario Quiterio";
-const DESCRIPTION = `Hand-made NFL picks from ${EXPERT_NAME}, published before kickoff and graded against the real final score - a verified record, win or lose.`;
+const DESCRIPTION = `Hand-made NFL picks and parlays from ${EXPERT_NAME}, published before kickoff and graded against the real final score - a verified record, win or lose.`;
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -16,6 +19,10 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
+function SectionHeading({ children }: { children: string }) {
+  return <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">{children}</h2>;
+}
+
 export default async function ExpertPicksPage() {
   let expert;
   try {
@@ -23,6 +30,8 @@ export default async function ExpertPicksPage() {
   } catch {
     expert = null;
   }
+
+  const hasVoided = expert !== null && (expert.voided_picks.length > 0 || expert.voided_parlays.length > 0);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
@@ -43,17 +52,39 @@ export default async function ExpertPicksPage() {
       ) : (
         <>
           <div className="mb-8 grid gap-4 md:grid-cols-2">
-            <RecordCard title="Expert Record" record={expert.record} />
-            <WindowsCard
-              title="Expert Record by Window"
-              streaks={expert.streaks}
-              hasHistory={expert.record.n_settled > 0}
-              emptyMessage="No expert picks have settled yet - windows will populate as picks are graded."
-            />
+            <RecordCard title="Parlay Record" record={expert.parlay_record} />
+            <RecordCard title="Single Picks Record" record={expert.record} />
           </div>
 
+          {expert.record.n_settled > 0 && (
+            <div className="mb-8">
+              <WindowsCard
+                title="Single Picks by Window"
+                streaks={expert.streaks}
+                hasHistory
+                emptyMessage=""
+              />
+            </div>
+          )}
+
           <section className="mb-8">
-            <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">Open Picks</h2>
+            <SectionHeading>Open Parlays</SectionHeading>
+            {expert.open_parlays.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border bg-surface-muted p-8 text-center">
+                <p className="mb-1 font-semibold">No open parlay right now.</p>
+                <p className="text-sm text-muted">A parlay appears here before kickoff and stays until every leg is graded.</p>
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {expert.open_parlays.map((parlay) => (
+                  <ParlayCard key={parlay.pick_id} parlay={parlay} />
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="mb-8">
+            <SectionHeading>Open Picks</SectionHeading>
             {expert.open_picks.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border bg-surface-muted p-8 text-center">
                 <p className="mb-1 font-semibold">No open expert picks right now.</p>
@@ -68,12 +99,39 @@ export default async function ExpertPicksPage() {
             )}
           </section>
 
-          {expert.settled_picks.length > 0 && (
+          {(expert.settled_parlays.length > 0 || expert.settled_picks.length > 0) && (
             <section className="mb-8">
-              <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">Results</h2>
+              <SectionHeading>Results</SectionHeading>
               <ul className="space-y-3">
+                {expert.settled_parlays.map((parlay) => (
+                  <ParlayCard key={parlay.pick_id} parlay={parlay} />
+                ))}
                 {expert.settled_picks.map((pick) => (
                   <PickListItem key={pick.pick_id} pick={pick} />
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {hasVoided && (
+            <section className="mb-8">
+              <SectionHeading>Voided Before Kickoff</SectionHeading>
+              <p className="mb-3 text-xs text-muted">
+                A published pick is never quietly removed. If one is voided, it stays listed here with the reason. Voided
+                picks are not counted in any record.
+              </p>
+              <ul className="space-y-2 text-sm text-muted">
+                {expert.voided_parlays.map((parlay) => (
+                  <li key={parlay.pick_id}>
+                    {parlay.legs.length}-leg parlay ({formatMoneyline(parlay.price)}): {parlay.legs.map((l) => l.description).join(", ")}
+                    {" - "}
+                    {voidReasonLabel(parlay.void_reason)}
+                  </li>
+                ))}
+                {expert.voided_picks.map((pick) => (
+                  <li key={pick.pick_id}>
+                    {selectionLineText(pick)} ({matchupText(pick)}) - {voidReasonLabel(pick.void_reason)}
+                  </li>
                 ))}
               </ul>
             </section>

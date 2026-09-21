@@ -56,7 +56,33 @@ def _validate_price(price: int) -> int:
     return price
 
 
-def _team_line_to_home_line(team_line: float, selection: str) -> float:
+def require_pregame_game(game_id: str, now_dt: datetime):
+    """The scheduled game, or `ExpertPickError` if it isn't in this season's schedule, isn't
+    `scheduled`, has no known kickoff, or has already kicked off - the rule that makes an
+    expert record show every pick was made before the outcome was knowable."""
+    season = get_current_season()
+    game = next((g for g in get_schedule(season).games if g.game_id == game_id), None)
+    if game is None:
+        raise ExpertPickError(f"game_id={game_id!r} is not in the {season} schedule.")
+    if game.game_status != SCHEDULED_STATUS:
+        raise ExpertPickError(f"{game_id} is {game.game_status!r}, not scheduled - picks can't be added after a game has been played.")
+    if game.kickoff_timestamp is None:
+        raise ExpertPickError(f"{game_id} has no known kickoff time - refusing to publish a pick that can't be shown to be pre-game.")
+    if datetime.fromisoformat(game.kickoff_timestamp) <= now_dt:
+        raise ExpertPickError(f"{game_id} kicked off at {game.kickoff_timestamp} - picks can't be added after kickoff.")
+    return game
+
+
+def selection_for_team(game, team: str) -> str:
+    abbr = team.strip().upper()
+    if abbr == game.home_team_abbr.upper():
+        return "home"
+    if abbr == game.away_team_abbr.upper():
+        return "away"
+    raise ExpertPickError(f"team={team!r} is not in {game.game_id} - use {game.away_team_abbr} or {game.home_team_abbr}.")
+
+
+def team_line_to_home_line(team_line: float, selection: str) -> float:
     return team_line if selection == "home" else -team_line
 
 
@@ -78,26 +104,9 @@ def build_expert_pick(
     if note is not None and len(note) > MAX_NOTE_LENGTH:
         raise ExpertPickError(f"note is {len(note)} characters - keep it under {MAX_NOTE_LENGTH}.")
 
-    season = get_current_season()
-    game = next((g for g in get_schedule(season).games if g.game_id == game_id), None)
-    if game is None:
-        raise ExpertPickError(f"game_id={game_id!r} is not in the {season} schedule.")
-
     now_dt = datetime.fromisoformat(now) if now else datetime.now(timezone.utc)
-    if game.game_status != SCHEDULED_STATUS:
-        raise ExpertPickError(f"{game_id} is {game.game_status!r}, not scheduled - picks can't be added after a game has been played.")
-    if game.kickoff_timestamp is None:
-        raise ExpertPickError(f"{game_id} has no known kickoff time - refusing to publish a pick that can't be shown to be pre-game.")
-    if datetime.fromisoformat(game.kickoff_timestamp) <= now_dt:
-        raise ExpertPickError(f"{game_id} kicked off at {game.kickoff_timestamp} - picks can't be added after kickoff.")
-
-    abbr = team.strip().upper()
-    if abbr == game.home_team_abbr.upper():
-        selection = "home"
-    elif abbr == game.away_team_abbr.upper():
-        selection = "away"
-    else:
-        raise ExpertPickError(f"team={team!r} is not in {game_id} - use {game.away_team_abbr} or {game.home_team_abbr}.")
+    game = require_pregame_game(game_id, now_dt)
+    selection = selection_for_team(game, team)
 
     market = recon.latest_market_point(game.season, game.week, game_id)
     market_available = market is not None and market.available
@@ -109,7 +118,7 @@ def build_expert_pick(
                 raise ExpertPickError("No current market spread to record - pass --line explicitly.")
             home_line = market.home_spread_traditional
         else:
-            home_line = _team_line_to_home_line(line, selection)
+            home_line = team_line_to_home_line(line, selection)
         if price is None:
             default_price = None
             if market_available:

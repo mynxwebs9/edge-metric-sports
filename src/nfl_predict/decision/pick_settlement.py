@@ -16,7 +16,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from nfl_predict.data.db import get_connection, init_schema
-from nfl_predict.decision.pick_ledger import PickStatus, read_current_picks
+from nfl_predict.decision.parlay_settlement import grade_parlay
+from nfl_predict.decision.pick_ledger import PickStatus, SettlementResult, read_current_picks
 from nfl_predict.decision.pick_ledger import settle_pick as record_settlement
 from nfl_predict.decision.settlement import UnsupportedMarketTypeError
 from nfl_predict.decision.settlement import settle_pick as compute_settlement
@@ -28,9 +29,11 @@ logger = get_logger(__name__)
 def settle_all_pending_picks(now: str | None = None) -> dict:
     """Returns real, never-fabricated counts: `settled` (list of {pick_id, category, result}),
     `still_pending` (game not final yet), `skipped_unsupported` (a market_type this project
-    doesn't grade, e.g. a future totals pick - recorded, never silently dropped)."""
+    doesn't grade, e.g. a future totals pick - recorded, never silently dropped), and
+    `needs_review` (a parlay whose grading needs a human decision - e.g. a pushed leg - see
+    `parlay_settlement.py`; left unsettled, never guessed)."""
     now_iso = now or datetime.now(timezone.utc).isoformat()
-    settled, still_pending, skipped_unsupported = [], [], []
+    settled, still_pending, skipped_unsupported, needs_review = [], [], [], []
 
     conn = get_connection()
     init_schema(conn)
@@ -38,6 +41,21 @@ def settle_all_pending_picks(now: str | None = None) -> dict:
         for pick in read_current_picks():
             if pick["status"] != PickStatus.PUBLISHED.value:
                 continue  # already settled or voided - never re-graded
+
+            if pick["market_type"] == "parlay":
+                outcome = grade_parlay(pick["legs"], conn)
+                if outcome.status == "pending":
+                    still_pending.append(pick["pick_id"])
+                elif outcome.status == "review":
+                    logger.warning("Parlay %s needs a human decision: %s", pick["pick_id"], outcome.reason)
+                    needs_review.append({"pick_id": pick["pick_id"], "reason": outcome.reason})
+                else:
+                    record_settlement(
+                        pick_id=pick["pick_id"], settlement=SettlementResult(outcome.result), settled_at=now_iso,
+                        result_source=outcome.result_source, leg_results=outcome.leg_results,
+                    )
+                    settled.append({"pick_id": pick["pick_id"], "category": pick["category"], "result": outcome.result})
+                continue
 
             game = conn.execute(
                 "SELECT home_score, away_score, game_status FROM games WHERE game_id = ?",
@@ -70,7 +88,7 @@ def settle_all_pending_picks(now: str | None = None) -> dict:
         conn.close()
 
     logger.info(
-        "Settlement pass: %d settled, %d still pending, %d skipped (unsupported market type)",
-        len(settled), len(still_pending), len(skipped_unsupported),
+        "Settlement pass: %d settled, %d still pending, %d skipped (unsupported market type), %d need review",
+        len(settled), len(still_pending), len(skipped_unsupported), len(needs_review),
     )
-    return {"settled": settled, "still_pending": still_pending, "skipped_unsupported": skipped_unsupported}
+    return {"settled": settled, "still_pending": still_pending, "skipped_unsupported": skipped_unsupported, "needs_review": needs_review}

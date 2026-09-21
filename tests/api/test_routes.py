@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from nfl_predict.api.main import app
 from nfl_predict.content.prediction_writer import FixtureContentWriterProvider, write_prediction_preview
 from nfl_predict.decision.decision_log import append_decision_record
-from nfl_predict.decision.pick_ledger import PublishedPick, SettlementResult, publish_pick, settle_pick
+from nfl_predict.decision.pick_ledger import PublishedPick, SettlementResult, publish_pick, settle_pick, void_pick
 from nfl_predict.decision.schemas import Decision, DecisionRecord, ReasonCode
 from nfl_predict.live.odds_ingestion import fetch_and_snapshot_live_odds
 from nfl_predict.live.prediction_publication import PublicModelPrediction, PublicationState, publish_model_prediction
@@ -277,6 +277,69 @@ def test_expert_picks_endpoint_separates_open_and_settled_and_never_leaks_into_m
     performance = client.get("/api/nfl/performance").json()
     assert performance["best_bets_record"]["n_settled"] == 0
     assert performance["all_model_predictions_record"]["n_settled"] == 0
+
+
+def _parlay(pick_id="expert_parlay_abc") -> PublishedPick:
+    legs = [
+        {"type": "moneyline", "game_id": GAME_ID, "matchup": "DEN @ KC", "description": "KC moneyline", "price": -305},
+        {"type": "player_prop", "game_id": GAME_ID, "matchup": "DEN @ KC", "description": "Patrick Mahomes 250+ passing yards", "price": -233},
+    ]
+    return PublishedPick(
+        pick_id=pick_id, game_id=GAME_ID, published_at="2026-09-12T09:00:00+00:00", kickoff_at="2026-09-14T20:15:00+00:00",
+        decision_id="n/a", rule_version="n/a", category="EXPERT_PARLAYS", market_type="parlay", selection="parlay",
+        line=None, price=180, sportsbook_or_source="Expert-supplied parlay price", market_snapshot_id=None,
+        model_prediction_snapshot={}, research_snapshot_id=None, validation_status="PROSPECTIVE", note="Chiefs roll.", legs=legs,
+    )
+
+
+def test_an_open_parlay_shows_its_legs_and_own_price_and_stays_out_of_the_single_pick_record(api_data_dir):
+    publish_pick(_parlay())
+
+    body = client.get("/api/nfl/expert-picks").json()
+
+    assert [p["pick_id"] for p in body["open_parlays"]] == ["expert_parlay_abc"]
+    parlay = body["open_parlays"][0]
+    assert parlay["price"] == 180
+    assert parlay["note"] == "Chiefs roll."
+    assert [leg["description"] for leg in parlay["legs"]] == ["KC moneyline", "Patrick Mahomes 250+ passing yards"]
+    assert [leg["result"] for leg in parlay["legs"]] == [None, None]
+    assert body["open_picks"] == []  # a parlay is never listed as a single pick
+    assert body["record"]["n_settled"] == 0 and body["parlay_record"]["n_settled"] == 0
+
+
+def test_a_settled_parlay_shows_how_each_leg_was_graded_and_has_its_own_record(api_data_dir):
+    publish_pick(_parlay())
+    settle_pick(
+        "expert_parlay_abc", SettlementResult.WIN, "2026-09-15T04:00:00+00:00", "test",
+        leg_results=[{"description": "KC moneyline", "result": "WIN", "detail": "DEN 10 - KC 27"},
+                     {"description": "Patrick Mahomes 250+ passing yards", "result": "WIN", "detail": "301 passing yards"}],
+    )
+
+    body = client.get("/api/nfl/expert-picks").json()
+
+    assert body["open_parlays"] == []
+    settled = body["settled_parlays"][0]
+    assert settled["settlement"] == "WIN"
+    assert [(leg["result"], leg["detail"]) for leg in settled["legs"]] == [("WIN", "DEN 10 - KC 27"), ("WIN", "301 passing yards")]
+    assert (body["parlay_record"]["wins"], body["parlay_record"]["total_units"]) == (1, 1.8)
+    assert body["record"]["n_settled"] == 0  # the single-pick record is untouched
+    assert client.get("/api/nfl/performance").json()["best_bets_record"]["n_settled"] == 0
+
+
+def test_voided_picks_and_parlays_stay_visible_with_their_reason_and_never_count_in_a_record(api_data_dir):
+    """A published pick must never vanish quietly - a pick voided before kickoff is listed
+    with its recorded reason, but it isn't 'open', isn't 'settled', and isn't in any record."""
+    publish_pick(_expert_pick("moneyline", "away", None, 120))
+    publish_pick(_parlay())
+    void_pick(f"{GAME_ID}_expert_moneyline", "CORRUPTED_INPUT_DETECTED_PRE_EVENT", "2026-09-12T10:00:00+00:00", "tester")
+    void_pick("expert_parlay_abc", "DUPLICATE_PUBLICATION", "2026-09-12T10:00:00+00:00", "tester")
+
+    body = client.get("/api/nfl/expert-picks").json()
+
+    assert [(p["pick_id"], p["void_reason"]) for p in body["voided_picks"]] == [(f"{GAME_ID}_expert_moneyline", "CORRUPTED_INPUT_DETECTED_PRE_EVENT")]
+    assert [(p["pick_id"], p["void_reason"]) for p in body["voided_parlays"]] == [("expert_parlay_abc", "DUPLICATE_PUBLICATION")]
+    assert body["open_picks"] == [] and body["open_parlays"] == [] and body["settled_picks"] == []
+    assert body["record"]["n_settled"] == 0 and body["parlay_record"]["n_settled"] == 0
 
 
 def test_only_the_actually_published_market_type_shows_is_published_best_bet(api_data_dir):

@@ -159,6 +159,7 @@ export interface PickOut {
   status: string;
   settlement: string | null; // "WIN" | "LOSS" | "PUSH" once settled
   note: string | null;
+  void_reason: string | null; // set only when status === "VOID"
 }
 
 export interface BestBetsResponse {
@@ -190,12 +191,38 @@ export interface StreakOut {
   headline: string | null;
 }
 
+export interface ParlayLegOut {
+  description: string;
+  matchup: string;
+  price: number | null;
+  result: string | null; // "WIN" | "LOSS" | "PUSH" | "NOT_GRADED" once the parlay is settled
+  detail: string | null; // e.g. "248 passing yards" or the final score
+}
+
+export interface ParlayOut {
+  pick_id: string;
+  published_at: string;
+  kickoff_at: string | null;
+  price: number; // the parlay's own American odds
+  status: string;
+  settlement: string | null;
+  note: string | null;
+  sportsbook_or_source: string;
+  void_reason: string | null;
+  legs: ParlayLegOut[];
+}
+
 export interface ExpertPicksResponse {
   schema_version: string;
   record: CategoryRecordOut;
+  parlay_record: CategoryRecordOut;
   streaks: StreakOut[];
   open_picks: PickOut[];
   settled_picks: PickOut[];
+  open_parlays: ParlayOut[];
+  settled_parlays: ParlayOut[];
+  voided_picks: PickOut[];
+  voided_parlays: ParlayOut[];
 }
 
 export interface PerformanceResponse {

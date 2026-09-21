@@ -41,6 +41,7 @@ class PickCategory(str, Enum):
     LEANS = "LEANS"
     BEST_BETS = "BEST_BETS"
     EXPERT_PICKS = "EXPERT_PICKS"  # a human's own picks - see expert_picks.py
+    EXPERT_PARLAYS = "EXPERT_PARLAYS"  # a human's own multi-leg parlays - see expert_parlays.py
 
 
 VALID_VOID_REASONS = frozenset({
@@ -86,6 +87,7 @@ class PublishedPick:
     research_snapshot_id: str | None
     validation_status: str  # "PROSPECTIVE" for every Phase 7 pick (Step 18)
     note: str | None = None  # optional short write-up (expert picks); absent on older events
+    legs: list[dict] | None = None  # parlays only: one dict per leg, fixed at publish time
 
 
 def _ledger_keys() -> tuple[str, str]:
@@ -135,16 +137,22 @@ def _current_status(pick_id: str, events: list[dict]) -> str:
     return status
 
 
-def settle_pick(pick_id: str, settlement: SettlementResult, settled_at: str, result_source: str) -> None:
+def settle_pick(
+    pick_id: str, settlement: SettlementResult, settled_at: str, result_source: str,
+    leg_results: list[dict] | None = None,
+) -> None:
     events = _read_events()
     if not any(e["pick_id"] == pick_id and e["event_type"] == "PUBLISHED" for e in events):
         raise PickNotFoundError(f"No published pick with pick_id={pick_id!r}")
     if _current_status(pick_id, events) != PickStatus.PUBLISHED.value:
         raise InvalidPickStateTransitionError(f"pick_id={pick_id!r} is not currently PUBLISHED - cannot settle a pick that is already settled or voided.")
-    _append_event({
+    event = {
         "event_type": "SETTLED", "pick_id": pick_id, "settlement": settlement.value,
         "settled_at": settled_at, "result_source": result_source,
-    })
+    }
+    if leg_results is not None:
+        event["leg_results"] = leg_results  # parlays: how each leg was graded
+    _append_event(event)
 
 
 def void_pick(pick_id: str, void_reason: str, void_timestamp: str, authorized_by: str) -> None:
@@ -174,6 +182,8 @@ def read_current_picks() -> list[dict]:
             picks[pick_id] = {k: v for k, v in e.items() if k != "event_type"}
             picks[pick_id]["status"] = PickStatus.PUBLISHED.value
             picks[pick_id].setdefault("note", None)
+            picks[pick_id].setdefault("legs", None)
+            picks[pick_id].setdefault("leg_results", None)
             picks[pick_id].setdefault("settlement", None)
             picks[pick_id].setdefault("settled_at", None)
             picks[pick_id].setdefault("result_source", None)
@@ -186,6 +196,7 @@ def read_current_picks() -> list[dict]:
             picks[pick_id]["settlement"] = e["settlement"]
             picks[pick_id]["settled_at"] = e["settled_at"]
             picks[pick_id]["result_source"] = e["result_source"]
+            picks[pick_id]["leg_results"] = e.get("leg_results")
         elif e["event_type"] == "VOIDED":
             picks[pick_id]["status"] = PickStatus.VOID.value
             picks[pick_id]["void_reason"] = e["void_reason"]

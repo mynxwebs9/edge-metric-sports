@@ -198,6 +198,7 @@ class PickOut(BaseModel):
     status: str
     settlement: str | None = None  # "WIN" | "LOSS" | "PUSH" once settled
     note: str | None = None  # optional short write-up (expert picks)
+    void_reason: str | None = None  # set only when status == "VOID"
 
 
 class BestBetsResponse(BaseModel):
@@ -229,15 +230,42 @@ class StreakOut(BaseModel):
     headline: str | None
 
 
+class ParlayLegOut(BaseModel):
+    description: str
+    matchup: str
+    price: int | None = None
+    result: str | None = None  # "WIN" | "LOSS" | "PUSH" | "NOT_GRADED" once the parlay is settled
+    detail: str | None = None  # e.g. "248 passing yards" or the final score
+
+
+class ParlayOut(BaseModel):
+    pick_id: str
+    published_at: str
+    kickoff_at: str | None
+    price: int  # the parlay's own American odds, as the sportsbook offered them
+    status: str
+    settlement: str | None = None
+    note: str | None = None
+    sportsbook_or_source: str
+    void_reason: str | None = None
+    legs: tuple[ParlayLegOut, ...]
+
+
 class ExpertPicksResponse(BaseModel):
-    """A human's own picks and their own record - a separate ledger category from both the
-    model's Best Bets and All Model Predictions, never blended into either."""
+    """A human's own picks and parlays and their own records - separate ledger categories
+    from the model's Best Bets and All Model Predictions, never blended into either."""
 
     schema_version: str = API_SCHEMA_VERSION
     record: CategoryRecordOut
+    parlay_record: CategoryRecordOut
     streaks: tuple[StreakOut, ...]
     open_picks: tuple[PickOut, ...]
     settled_picks: tuple[PickOut, ...]
+    open_parlays: tuple[ParlayOut, ...]
+    settled_parlays: tuple[ParlayOut, ...]
+    # Picks/parlays voided before kickoff stay visible - a published pick never vanishes quietly.
+    voided_picks: tuple[PickOut, ...] = ()
+    voided_parlays: tuple[ParlayOut, ...] = ()
 
 
 class PerformanceResponse(BaseModel):
