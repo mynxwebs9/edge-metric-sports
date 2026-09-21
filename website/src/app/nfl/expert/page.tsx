@@ -6,7 +6,8 @@ import RecordCard from "@/components/RecordCard";
 import WindowsCard from "@/components/WindowsCard";
 
 const TITLE = "NFL Expert Picks";
-const DESCRIPTION = "Hand-made NFL picks from our expert, published before kickoff and graded against the real final score - a verified record, win or lose.";
+const EXPERT_NAME = "Mario Quiterio";
+const DESCRIPTION = `Hand-made NFL picks from ${EXPERT_NAME}, published before kickoff and graded against the real final score - a verified record, win or lose.`;
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -25,9 +26,10 @@ export default async function ExpertPicksPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-      <h1 className="mb-2 text-4xl font-black tracking-tight">Expert Picks</h1>
+      <h1 className="mb-1 text-4xl font-black tracking-tight">Expert Picks</h1>
+      <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-accent">By {EXPERT_NAME}</p>
       <p className="mb-8 text-muted">
-        These are hand-made picks from a person, not the model. Each one is published before kickoff, locked into
+        These are hand-made picks from {EXPERT_NAME}, not the model. Each one is published before kickoff, locked into
         the same append-only ledger as everything else on this site, and graded against the real final score - it
         can never be edited or deleted. This record is completely separate from the model&apos;s Best Bets.
       </p>
