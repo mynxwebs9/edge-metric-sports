@@ -25,6 +25,7 @@ from nfl_predict.api.schemas import (
     DecisionsResponse,
     GameCard,
     GameDetail,
+    ExpertPicksResponse,
     GameIdOut,
     GameIdsResponse,
     HealthResponse,
@@ -262,20 +263,50 @@ def best_bets() -> BestBetsResponse:
     _, schedule = recon.current_season_and_schedule()
     games_by_id = {g.game_id: g for g in schedule.games}
     teams = recon.team_lookup()
+    return BestBetsResponse(picks=tuple(_pick_out(p, games_by_id, teams) for p in picks))
 
-    pick_outs = []
-    for p in picks:
-        game = games_by_id.get(p["game_id"])
-        home_team = _team_out(game.home_team_id, teams, game.home_team_abbr) if game else None
-        away_team = _team_out(game.away_team_id, teams, game.away_team_abbr) if game else None
-        selection_team = home_team if p["selection"] == "home" else away_team
-        pick_outs.append(PickOut(
-            pick_id=p["pick_id"], game_id=p["game_id"], published_at=p["published_at"],
-            kickoff_at=p["kickoff_at"], market_type=p["market_type"], selection=p["selection"],
-            selection_team=selection_team, home_team=home_team, away_team=away_team,
-            line=p["line"], price=p["price"], sportsbook_or_source=p["sportsbook_or_source"], status=p["status"],
-        ))
-    return BestBetsResponse(picks=tuple(pick_outs))
+
+def _pick_out(p: dict, games_by_id: dict, teams: dict) -> PickOut:
+    game = games_by_id.get(p["game_id"])
+    home_team = _team_out(game.home_team_id, teams, game.home_team_abbr) if game else None
+    away_team = _team_out(game.away_team_id, teams, game.away_team_abbr) if game else None
+    selection_team = home_team if p["selection"] == "home" else away_team
+    return PickOut(
+        pick_id=p["pick_id"], game_id=p["game_id"], published_at=p["published_at"],
+        kickoff_at=p["kickoff_at"], market_type=p["market_type"], selection=p["selection"],
+        selection_team=selection_team, home_team=home_team, away_team=away_team,
+        line=p["line"], price=p["price"], sportsbook_or_source=p["sportsbook_or_source"], status=p["status"],
+        settlement=p.get("settlement"), note=p.get("note"),
+    )
+
+
+def _streak_outs(windows: dict) -> tuple[StreakOut, ...]:
+    return tuple(
+        StreakOut(window=s.window, n=s.n, wins=s.wins, losses=s.losses, pushes=s.pushes,
+                  win_rate=s.win_rate, total_units=s.total_units, headline=s.headline if s.headline_eligible else None)
+        for s in windows.values()
+    )
+
+
+@app.get("/api/nfl/expert-picks", response_model=ExpertPicksResponse)
+def expert_picks() -> ExpertPicksResponse:
+    from nfl_predict.decision.pick_ledger import read_current_picks
+
+    picks = read_current_picks()
+    expert = [p for p in picks if p["category"] == "EXPERT_PICKS" and p["status"] != "VOID"]
+
+    season, schedule = recon.current_season_and_schedule()
+    games_by_id = {g.game_id: g for g in schedule.games}
+    teams = recon.team_lookup()
+
+    open_picks = sorted((p for p in expert if p["status"] == "PUBLISHED"), key=lambda p: p["kickoff_at"] or "")
+    settled_picks = sorted((p for p in expert if p["status"] == "SETTLED"), key=lambda p: p["settled_at"], reverse=True)[:100]
+    return ExpertPicksResponse(
+        record=_category_record_out(picks, "EXPERT_PICKS"),
+        streaks=_streak_outs(compute_all_predefined_windows(picks, "EXPERT_PICKS", season=season)),
+        open_picks=tuple(_pick_out(p, games_by_id, teams) for p in open_picks),
+        settled_picks=tuple(_pick_out(p, games_by_id, teams) for p in settled_picks),
+    )
 
 
 def _category_record_out(picks: list[dict], category: str) -> CategoryRecordOut:
@@ -296,11 +327,7 @@ def performance() -> PerformanceResponse:
 
     season = recon.current_season_and_schedule()[0]
     windows = compute_all_predefined_windows(picks, "BEST_BETS", season=season)
-    streak_outs = tuple(
-        StreakOut(window=s.window, n=s.n, wins=s.wins, losses=s.losses, pushes=s.pushes,
-                  win_rate=s.win_rate, total_units=s.total_units, headline=s.headline if s.headline_eligible else None)
-        for s in windows.values()
-    )
+    streak_outs = _streak_outs(windows)
 
     headline = None
     if windows.get("last_10") and windows["last_10"].headline_eligible:

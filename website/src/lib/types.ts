@@ -157,6 +157,8 @@ export interface PickOut {
   price: number;
   sportsbook_or_source: string;
   status: string;
+  settlement: string | null; // "WIN" | "LOSS" | "PUSH" once settled
+  note: string | null;
 }
 
 export interface BestBetsResponse {
@@ -186,6 +188,14 @@ export interface StreakOut {
   win_rate: number | null;
   total_units: number | null;
   headline: string | null;
+}
+
+export interface ExpertPicksResponse {
+  schema_version: string;
+  record: CategoryRecordOut;
+  streaks: StreakOut[];
+  open_picks: PickOut[];
+  settled_picks: PickOut[];
 }
 
 export interface PerformanceResponse {

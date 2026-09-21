@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from nfl_predict.api.main import app
 from nfl_predict.content.prediction_writer import FixtureContentWriterProvider, write_prediction_preview
 from nfl_predict.decision.decision_log import append_decision_record
-from nfl_predict.decision.pick_ledger import PublishedPick, publish_pick
+from nfl_predict.decision.pick_ledger import PublishedPick, SettlementResult, publish_pick, settle_pick
 from nfl_predict.decision.schemas import Decision, DecisionRecord, ReasonCode
 from nfl_predict.live.odds_ingestion import fetch_and_snapshot_live_odds
 from nfl_predict.live.prediction_publication import PublicModelPrediction, PublicationState, publish_model_prediction
@@ -231,6 +231,52 @@ def test_game_card_headline_decision_matches_the_moneyline_not_the_spread(api_da
     card = next(g for g in slate["games"] if g["game_id"] == GAME_ID)
     assert card["decision"]["market_type"] == "moneyline"
     assert card["decision"]["decision"] == "QUALIFIED_BET"
+
+
+def _expert_pick(market_type: str, selection: str, line, price, note=None) -> PublishedPick:
+    return PublishedPick(
+        pick_id=f"{GAME_ID}_expert_{market_type}", game_id=GAME_ID, published_at="2026-09-12T09:00:00+00:00",
+        kickoff_at="2026-09-14T20:15:00+00:00", decision_id="n/a - expert pick", rule_version="n/a",
+        category="EXPERT_PICKS", market_type=market_type, selection=selection, line=line, price=price,
+        sportsbook_or_source="Expert-supplied line and price", market_snapshot_id=None,
+        model_prediction_snapshot={}, research_snapshot_id=None, validation_status="PROSPECTIVE", note=note,
+    )
+
+
+def test_expert_picks_endpoint_has_an_honest_empty_state(api_data_dir):
+    body = client.get("/api/nfl/expert-picks").json()
+    assert body["open_picks"] == []
+    assert body["settled_picks"] == []
+    assert body["record"]["category"] == "EXPERT_PICKS"
+    assert body["record"]["n_settled"] == 0
+    assert body["record"]["win_rate"] is None
+
+
+def test_expert_picks_endpoint_separates_open_and_settled_and_never_leaks_into_model_records(api_data_dir):
+    publish_pick(_expert_pick("spread", "away", -3.0, -110, note="Broncos +3 is a full field goal of cushion."))
+    publish_pick(_expert_pick("moneyline", "away", None, 120))
+    settle_pick(f"{GAME_ID}_expert_moneyline", SettlementResult.WIN, "2026-09-15T04:00:00+00:00", "test")
+
+    body = client.get("/api/nfl/expert-picks").json()
+
+    assert [p["pick_id"] for p in body["open_picks"]] == [f"{GAME_ID}_expert_spread"]
+    open_pick = body["open_picks"][0]
+    assert open_pick["selection_team"]["abbr"] == "DEN"
+    assert open_pick["line"] == -3.0
+    assert open_pick["note"] == "Broncos +3 is a full field goal of cushion."
+    assert open_pick["settlement"] is None
+
+    assert [p["pick_id"] for p in body["settled_picks"]] == [f"{GAME_ID}_expert_moneyline"]
+    assert body["settled_picks"][0]["settlement"] == "WIN"
+
+    assert (body["record"]["n_settled"], body["record"]["wins"], body["record"]["losses"]) == (1, 1, 0)
+    assert body["record"]["total_units"] == 1.2  # +120 win at 1 unit
+
+    # A human's picks are their own record - they must never appear in, or change, the model's.
+    assert client.get("/api/nfl/best-bets").json()["picks"] == []
+    performance = client.get("/api/nfl/performance").json()
+    assert performance["best_bets_record"]["n_settled"] == 0
+    assert performance["all_model_predictions_record"]["n_settled"] == 0
 
 
 def test_only_the_actually_published_market_type_shows_is_published_best_bet(api_data_dir):

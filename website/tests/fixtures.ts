@@ -15,7 +15,7 @@ export function makePick(overrides: Partial<PickOut> = {}): PickOut {
     away_team: { team_id: "1400", abbr: "DEN", name: "Denver Broncos", nickname: "Broncos" },
     line: -2.0, price: -110,
     sportsbook_or_source: "Consensus of 9 sportsbooks (median_spread_mean_no_vig_v1): draftkings, fanduel",
-    status: "PUBLISHED",
+    status: "PUBLISHED", settlement: null, note: null,
     ...overrides,
   };
 }

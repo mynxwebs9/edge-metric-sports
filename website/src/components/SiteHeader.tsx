@@ -4,6 +4,7 @@ import Logo from "./Logo";
 const NAV_LINKS = [
   { href: "/", label: "Home" },
   { href: "/nfl/picks", label: "Best Bets" },
+  { href: "/nfl/expert", label: "Expert Picks" },
   { href: "/nfl/schedule", label: "Schedule" },
   { href: "/nfl/performance", label: "Performance" },
   { href: "/methodology", label: "Methodology" },

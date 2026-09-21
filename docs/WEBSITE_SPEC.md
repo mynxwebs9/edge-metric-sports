@@ -76,6 +76,12 @@ never website-layer code.
   market comparison, decision + reasoning, research agent findings (with sources), and
   historical head-to-head context if useful.
 - **Best Bets** — filtered view of BET/LEAN decisions only; can legitimately be empty.
+- **Expert Picks** (`/nfl/expert`, built) — a human's own picks with their own record on
+  the same page, served by `/api/nfl/expert-picks`. The one deliberate exception to "never
+  manually authored": the picks and their short notes are hand-entered, but the record,
+  units, and grading are still computed by code from the immutable ledger (see
+  `docs/DECISION_ENGINE.md`'s `EXPERT_PICKS`), and it is visibly separate from the model's
+  Best Bets.
 - **Schedule** — full season schedule.
 - **Teams** — per-team pages (roster/coaching context, season performance).
 - **Model Performance** — backtested and live track record, using the same metrics defined

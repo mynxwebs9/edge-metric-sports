@@ -77,6 +77,13 @@ own pre-declared (outcome-blind) bucket boundaries or to general operational rea
   `config/decision_thresholds.yaml` placeholder (still present, documented as superseded).
 - **Official pick categories**: `ALL_MODEL_PREDICTIONS | LEANS | BEST_BETS`, tracked and
   reported strictly separately, never combined or retroactively reclassified.
+- **`EXPERT_PICKS`** (added later): a human's own spread/moneyline picks, entered via
+  `python -m nfl_predict.decision.expert_picks`. NOT a decision-engine output - no model,
+  market, or research gate applies, and it never feeds or is fed by any other category.
+  It shares the ledger, `settle_all_pending_picks()` and price-aware record math, and the
+  code enforces what makes such a record credible: `published_at` is always the real time
+  of publication (never caller-supplied), a pick is refused once its game has kicked off or
+  isn't `scheduled`, and there is one immutable pick per game per market.
 - **Settlement**: deterministic, spread and moneyline only (no totals).
 - **Streak/headline engine**: predefined windows only
   (`last_5/10/20/30`/`season_to_date`/`current_streak`) — no arbitrary date ranges.

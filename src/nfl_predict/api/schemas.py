@@ -196,6 +196,8 @@ class PickOut(BaseModel):
     price: int
     sportsbook_or_source: str
     status: str
+    settlement: str | None = None  # "WIN" | "LOSS" | "PUSH" once settled
+    note: str | None = None  # optional short write-up (expert picks)
 
 
 class BestBetsResponse(BaseModel):
@@ -225,6 +227,17 @@ class StreakOut(BaseModel):
     win_rate: float | None
     total_units: float | None
     headline: str | None
+
+
+class ExpertPicksResponse(BaseModel):
+    """A human's own picks and their own record - a separate ledger category from both the
+    model's Best Bets and All Model Predictions, never blended into either."""
+
+    schema_version: str = API_SCHEMA_VERSION
+    record: CategoryRecordOut
+    streaks: tuple[StreakOut, ...]
+    open_picks: tuple[PickOut, ...]
+    settled_picks: tuple[PickOut, ...]
 
 
 class PerformanceResponse(BaseModel):

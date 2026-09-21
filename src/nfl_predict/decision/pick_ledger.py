@@ -40,6 +40,7 @@ class PickCategory(str, Enum):
     ALL_MODEL_PREDICTIONS = "ALL_MODEL_PREDICTIONS"
     LEANS = "LEANS"
     BEST_BETS = "BEST_BETS"
+    EXPERT_PICKS = "EXPERT_PICKS"  # a human's own picks - see expert_picks.py
 
 
 VALID_VOID_REASONS = frozenset({
@@ -84,6 +85,7 @@ class PublishedPick:
     model_prediction_snapshot: dict
     research_snapshot_id: str | None
     validation_status: str  # "PROSPECTIVE" for every Phase 7 pick (Step 18)
+    note: str | None = None  # optional short write-up (expert picks); absent on older events
 
 
 def _ledger_keys() -> tuple[str, str]:
@@ -171,6 +173,7 @@ def read_current_picks() -> list[dict]:
         if e["event_type"] == "PUBLISHED":
             picks[pick_id] = {k: v for k, v in e.items() if k != "event_type"}
             picks[pick_id]["status"] = PickStatus.PUBLISHED.value
+            picks[pick_id].setdefault("note", None)
             picks[pick_id].setdefault("settlement", None)
             picks[pick_id].setdefault("settled_at", None)
             picks[pick_id].setdefault("result_source", None)

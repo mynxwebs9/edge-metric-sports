@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { getBestBets } from "@/lib/api";
 import AdSlot from "@/components/AdSlot";
-import { formatMoneyline, formatTimestamp } from "@/lib/format";
-import { matchupText, selectionLineText } from "@/lib/picks";
+import PickListItem from "@/components/PickListItem";
 
 const TITLE = "NFL Best Bets";
 const DESCRIPTION = "Our currently qualified NFL picks, derived only from the official prospective pick ledger - never forced.";
@@ -45,21 +43,7 @@ export default async function PicksPage() {
       ) : (
         <ul className="space-y-3">
           {bestBets.picks.map((pick) => (
-            <li key={pick.pick_id} className="rounded-xl border border-border bg-surface p-5">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="font-bold">{selectionLineText(pick)}</span>
-                {pick.market_type === "spread" && <span className="text-sm text-muted">{formatMoneyline(pick.price)}</span>}
-              </div>
-              <p className="mb-1 text-xs text-muted">
-                {matchupText(pick)} ·{" "}
-                <Link href={`/nfl/games/${pick.game_id}`} className="font-medium text-accent hover:underline">
-                  View matchup
-                </Link>
-              </p>
-              <p className="text-xs text-muted">
-                {pick.sportsbook_or_source} · Published {formatTimestamp(pick.published_at)}
-              </p>
-            </li>
+            <PickListItem key={pick.pick_id} pick={pick} />
           ))}
         </ul>
       )}

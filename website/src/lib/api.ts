@@ -8,6 +8,7 @@
 import type {
   BestBetsResponse,
   DecisionsResponse,
+  ExpertPicksResponse,
   GameDetail,
   GameIdsResponse,
   ModelStatusResponse,
@@ -46,6 +47,10 @@ export function getGameDetail(gameId: string): Promise<GameDetail> {
 
 export function getBestBets(): Promise<BestBetsResponse> {
   return getJson<BestBetsResponse>("/api/nfl/best-bets", 30);
+}
+
+export function getExpertPicks(): Promise<ExpertPicksResponse> {
+  return getJson<ExpertPicksResponse>("/api/nfl/expert-picks", 30);
 }
 
 export function getPerformance(): Promise<PerformanceResponse> {
