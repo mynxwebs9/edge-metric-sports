@@ -21,6 +21,7 @@ Keys are `/`-separated strings mirroring the paths these modules already used (e
 
 from __future__ import annotations
 
+import threading
 from abc import ABC, abstractmethod
 
 from nfl_predict.config import get_settings
@@ -91,8 +92,16 @@ class LocalFilesystemBlobStore(BlobStore):
 
 class PostgresBlobStore(BlobStore):
     """One `blobs` table holds every key this project persists. Simple by design (a single
-    process-lifetime connection, no pooling) - appropriate for this project's read-heavy,
-    low-concurrency reporting API, not a general-purpose high-throughput store."""
+    long-lived connection, no pooling) - appropriate for this project's read-heavy,
+    low-concurrency reporting API, not a general-purpose high-throughput store.
+
+    The database (or its connection pooler) closes idle connections, and a closed psycopg
+    connection never recovers on its own - a real incident: after hours idle every API request
+    failed with "the connection is closed" until the process was restarted. So this store
+    reconnects: READS retry once on a fresh connection (idempotent, always safe); WRITES only
+    reconnect BEFORE sending, when the connection is already known to be dead. A write is never
+    blindly retried after an error, because an append whose reply was lost may already have
+    happened, and repeating it would duplicate an immutable ledger entry."""
 
     _SCHEMA = """
     CREATE TABLE IF NOT EXISTS blobs (
@@ -106,28 +115,54 @@ class PostgresBlobStore(BlobStore):
         import psycopg  # optional dependency - only imported when the postgres backend is actually selected
 
         self._psycopg = psycopg
-        self._conn = psycopg.connect(database_url, autocommit=True)
+        self._database_url = database_url
+        self._lock = threading.Lock()
+        self._connect()
+
+    def _connect(self) -> None:
+        self._conn = self._psycopg.connect(self._database_url, autocommit=True)
         self._conn.execute(self._SCHEMA)
+
+    def _ensure_connection(self) -> None:
+        if self._conn.closed or self._conn.broken:
+            with self._lock:
+                if self._conn.closed or self._conn.broken:  # another thread may have just reconnected
+                    self._connect()
+
+    def _read(self, sql: str, params: tuple):
+        """Executes a read; on a dropped connection, reconnects and retries exactly once."""
+        self._ensure_connection()
+        try:
+            return self._conn.execute(sql, params)
+        except self._psycopg.OperationalError:
+            with self._lock:
+                self._connect()
+            return self._conn.execute(sql, params)
+
+    def _write(self, sql: str, params: tuple):
+        """Executes a write on a live connection - reconnecting only beforehand, never retrying."""
+        self._ensure_connection()
+        return self._conn.execute(sql, params)
 
     @staticmethod
     def _escape_like(prefix: str) -> str:
         return prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
     def read_bytes(self, key: str) -> bytes:
-        row = self._conn.execute("SELECT content FROM blobs WHERE key = %s", (key,)).fetchone()
+        row = self._read("SELECT content FROM blobs WHERE key = %s", (key,)).fetchone()
         if row is None:
             raise FileNotFoundError(f"No blob at key={key!r}")
         return bytes(row[0])
 
     def write_bytes(self, key: str, content: bytes, *, exist_ok: bool = False) -> None:
         if exist_ok:
-            self._conn.execute(
+            self._write(
                 "INSERT INTO blobs (key, content, updated_at) VALUES (%s, %s, now()) "
                 "ON CONFLICT (key) DO UPDATE SET content = EXCLUDED.content, updated_at = now()",
                 (key, content),
             )
             return
-        cur = self._conn.execute(
+        cur = self._write(
             "INSERT INTO blobs (key, content) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING RETURNING key",
             (key, content),
         )
@@ -135,19 +170,19 @@ class PostgresBlobStore(BlobStore):
             raise FileExistsError(f"Blob already exists at key={key!r} - it is immutable and was not overwritten.")
 
     def append_bytes(self, key: str, content: bytes) -> None:
-        self._conn.execute(
+        self._write(
             "INSERT INTO blobs (key, content) VALUES (%s, %s) "
             "ON CONFLICT (key) DO UPDATE SET content = blobs.content || EXCLUDED.content, updated_at = now()",
             (key, content),
         )
 
     def exists(self, key: str) -> bool:
-        row = self._conn.execute("SELECT 1 FROM blobs WHERE key = %s LIMIT 1", (key,)).fetchone()
+        row = self._read("SELECT 1 FROM blobs WHERE key = %s LIMIT 1", (key,)).fetchone()
         return row is not None
 
     def list_keys(self, prefix: str) -> list[str]:
         pattern = self._escape_like(prefix) + "%"
-        rows = self._conn.execute(
+        rows = self._read(
             "SELECT key FROM blobs WHERE key LIKE %s ESCAPE '\\' ORDER BY key", (pattern,)
         ).fetchall()
         return [r[0] for r in rows]

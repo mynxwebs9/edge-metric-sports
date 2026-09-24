@@ -76,3 +76,61 @@ def test_list_keys_respects_prefix_and_sql_like_escaping(store):
     s.write_bytes(prefix + "50%off/a.json", b"{}")
     s.write_bytes(prefix + "other/b.json", b"{}")
     assert s.list_keys(prefix + "50%off/") == [prefix + "50%off/a.json"]
+
+
+# ---------------------------------------------------------------- dropped connections
+# A real incident: the database closes idle connections, and a closed psycopg connection never
+# recovers by itself - after hours idle every API request failed with "the connection is
+# closed" until the process was restarted.
+
+def _terminate_from_the_server_side(store_obj):
+    import psycopg
+
+    pid = store_obj._conn.info.backend_pid
+    with psycopg.connect(os.environ["NFL_TEST_POSTGRES_URL"], autocommit=True) as admin:
+        admin.execute("SELECT pg_terminate_backend(%s)", (pid,))
+
+
+def test_a_read_after_the_connection_was_closed_reconnects(store):
+    s, prefix = store
+    s.write_bytes(prefix + "a.json", b"hello")
+    s._conn.close()
+
+    assert s.read_bytes(prefix + "a.json") == b"hello"
+    assert s.exists(prefix + "a.json") is True
+
+
+def test_a_read_after_the_server_killed_the_connection_retries_once_on_a_fresh_one(store):
+    s, prefix = store
+    s.write_bytes(prefix + "a.json", b"hello")
+    _terminate_from_the_server_side(s)  # the client doesn't know yet - the first use will find out
+
+    assert s.read_bytes(prefix + "a.json") == b"hello"
+    assert s.list_keys(prefix) == [prefix + "a.json"]
+
+
+def test_a_write_after_the_connection_was_closed_reconnects_before_sending_and_lands_exactly_once(store):
+    s, prefix = store
+    s.append_bytes(prefix + "log.jsonl", b"one\n")
+    s._conn.close()
+
+    s.append_bytes(prefix + "log.jsonl", b"two\n")
+
+    assert s.read_bytes(prefix + "log.jsonl") == b"one\ntwo\n"
+
+
+def test_a_write_is_never_blindly_retried_after_the_server_kills_the_connection(store):
+    """If the connection dies as the write is sent, the caller must find out - repeating an
+    append whose reply was lost could duplicate an immutable ledger entry. The NEXT call then
+    reconnects normally."""
+    import psycopg
+
+    s, prefix = store
+    s.append_bytes(prefix + "log.jsonl", b"one\n")
+    _terminate_from_the_server_side(s)
+
+    with pytest.raises(psycopg.OperationalError):
+        s.append_bytes(prefix + "log.jsonl", b"two\n")
+
+    s.append_bytes(prefix + "log.jsonl", b"three\n")
+    assert s.read_bytes(prefix + "log.jsonl") == b"one\nthree\n"  # 'two' was never applied, and nothing was doubled
